@@ -216,8 +216,14 @@ let serwistHandledRequest = false;
       } catch (e) {
         console.warn("[SW] Failed to precache offline.html:", e);
       }
-      await (self as unknown as SWScope).clients.claim();
-      console.log("[SW] Activated");
+      // Only claim if we're the active worker (wait a tick to ensure activation is complete)
+      await new Promise(resolve => setTimeout(resolve, 10));
+      try {
+        await (self as unknown as SWScope).clients.claim();
+        console.log("[SW] Activated and claimed clients");
+      } catch (e) {
+        console.log("[SW] Could not claim clients (already active):", e);
+      }
     })()
   );
 });

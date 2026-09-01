@@ -74,6 +74,7 @@ export default function POSPage() {
   // synchronously on the client before the first paint, so there's no
   // flash of skeleton when offline cache exists.
   const [menu, setMenuInternal] = useState<MenuItem[]>([]);
+  const hasCachedData = useRef(false);
   
   // Protected menu setter - prevents overwriting cached data with empty arrays
   const setMenu = useCallback((newMenu: MenuItem[]) => {
@@ -131,7 +132,6 @@ export default function POSPage() {
   // useLayoutEffect runs synchronously on the client before the browser
   // paints — so cached items appear immediately with no skeleton flash.
   // It never runs on the server, so no SSR mismatch.
-  const hasCachedData = useRef(false);
   useLayoutEffect(() => {
     console.log("[POS] useLayoutEffect running, checking cache...");
     console.log("[POS] localStorage test:", {
