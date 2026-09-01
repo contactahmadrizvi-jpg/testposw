@@ -123,6 +123,7 @@ export default function POSPage() {
     const cachedCats = loadCachedCategories();
     const cachedDeals = loadCachedDeals();
     if (cachedItems.length > 0) {
+      console.log(`[POS] Loaded ${cachedItems.length} cached menu items from localStorage`);
       setMenu(cachedItems);
       setMenuLoading(false);
       hasCachedData.current = true; // prevent offline timer from re-enabling skeleton
@@ -164,6 +165,7 @@ export default function POSPage() {
       if (offlineTimer) clearTimeout(offlineTimer);
       setMenu(items);
       setMenuLoading(false);
+      console.log(`[POS] Caching ${items.length} menu items to localStorage`);
       cacheMenuItems(items); // persist for next offline session
     });
 

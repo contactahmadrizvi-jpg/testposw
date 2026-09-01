@@ -31,8 +31,12 @@ export default function KitchenPage() {
   useLayoutEffect(() => {
     const cachedItems = loadCachedMenuItems();
     const localOrders = getPendingKitchenOrders();
-    if (cachedItems.length > 0) setMenuItems(cachedItems);
+    if (cachedItems.length > 0) {
+      console.log(`[Kitchen] Loaded ${cachedItems.length} cached menu items`);
+      setMenuItems(cachedItems);
+    }
     if (localOrders.length > 0) {
+      console.log(`[Kitchen] Loaded ${localOrders.length} pending orders from local queue`);
       setOrders(localOrders);
       setLoading(false);
       hasCachedData.current = true;
@@ -94,6 +98,7 @@ export default function KitchenPage() {
       : setTimeout(() => setLoading(false), 5000);
 
     const unsubMenu = subscribeMenuItems((items) => {
+      console.log(`[Kitchen] Caching ${items.length} menu items to localStorage`);
       setMenuItems(items);
       cacheMenuItems(items);
     });
