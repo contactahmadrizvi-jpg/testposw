@@ -41,8 +41,11 @@ function safeGet<T>(key: string): T | null {
 function safeSet(key: string, value: unknown): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
+    const serialized = JSON.stringify(value);
+    localStorage.setItem(key, serialized);
+    console.log(`[Cache] Saved ${key}: ${(serialized.length / 1024).toFixed(2)} KB`);
+  } catch (error) {
+    console.error(`[Cache] Failed to save ${key}:`, error);
     // Storage quota exceeded — silently ignore; app still works, just no cache update.
   }
 }
@@ -55,10 +58,26 @@ export function cacheCategories(categories: MenuCategory[]): void {
 }
 
 export function cacheMenuItems(items: MenuItem[]): void {
-  safeSet(KEYS.items, items);
-  safeSet(KEYS.lastSync, new Date().toISOString());
-  // Fire-and-forget image pre-cache
-  void prefetchMenuImages(items);
+  console.log("[Cache] cacheMenuItems() called with", items.length, "items");
+  try {
+    const serialized = JSON.stringify(items);
+    console.log("[Cache] Serialized size:", (serialized.length / 1024).toFixed(2), "KB");
+    localStorage.setItem(KEYS.items, serialized);
+    console.log("[Cache] ✅ Successfully wrote menu items to localStorage");
+    safeSet(KEYS.lastSync, new Date().toISOString());
+    // Fire-and-forget image pre-cache
+    void prefetchMenuImages(items);
+  } catch (error) {
+    console.error("[Cache] ❌ Failed to cache menu items:", error);
+    // Try without images if quota exceeded
+    try {
+      const itemsWithoutImages = items.map(item => ({ ...item, imageUrl: undefined }));
+      localStorage.setItem(KEYS.items, JSON.stringify(itemsWithoutImages));
+      console.log("[Cache] ✅ Saved items without images (quota issue)");
+    } catch (e2) {
+      console.error("[Cache] ❌ Failed even without images:", e2);
+    }
+  }
 }
 
 export function cacheDeals(deals: Deal[]): void {
@@ -72,7 +91,9 @@ export function loadCachedCategories(): MenuCategory[] {
 }
 
 export function loadCachedMenuItems(): MenuItem[] {
+  console.log("[Cache] loadCachedMenuItems() called");
   const items = safeGet<MenuItem[]>(KEYS.items) ?? [];
+  console.log("[Cache] Raw items from localStorage:", items.length);
   // Swap in locally-cached image data-URLs so images render without network
   return items.map((item) => {
     if (!item.imageUrl) return item;

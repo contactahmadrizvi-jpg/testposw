@@ -119,14 +119,22 @@ export default function POSPage() {
   // It never runs on the server, so no SSR mismatch.
   const hasCachedData = useRef(false);
   useLayoutEffect(() => {
+    console.log("[POS] useLayoutEffect running, checking cache...");
     const cachedItems = loadCachedMenuItems();
     const cachedCats = loadCachedCategories();
     const cachedDeals = loadCachedDeals();
+    console.log("[POS] Cache check results:", {
+      items: cachedItems.length,
+      categories: cachedCats.length,
+      deals: cachedDeals.length
+    });
     if (cachedItems.length > 0) {
-      console.log(`[POS] Loaded ${cachedItems.length} cached menu items from localStorage`);
+      console.log(`[POS] ✅ Loaded ${cachedItems.length} cached menu items from localStorage`);
       setMenu(cachedItems);
       setMenuLoading(false);
       hasCachedData.current = true; // prevent offline timer from re-enabling skeleton
+    } else {
+      console.warn("[POS] ⚠️ No cached menu items found in localStorage!");
     }
     if (cachedCats.length > 0) setCategories(cachedCats);
     if (cachedDeals.length > 0) setDeals(cachedDeals);
