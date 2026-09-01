@@ -126,18 +126,16 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
-// Claim clients manually after activation so there's no race condition.
-// By the time "activate" fires the SW IS the active worker, so
-// clients.claim() is safe. We use WorkerGlobalScope (available in the
-// dom lib) instead of ServiceWorkerGlobalScope (not in dom lib).
+// Claim clients manually after activation — avoids the race condition
+// where clientsClaim() fires before the SW is active.
+// Use plain Event type to stay within the dom lib (no webworker lib needed).
 type SWScope = WorkerGlobalScope & {
-  addEventListener(type: string, listener: (event: ExtendableEvent) => void): void;
+  addEventListener(type: string, listener: (event: Event) => void): void;
   clients: { claim(): Promise<void> };
 };
 
-(self as unknown as SWScope).addEventListener(
-  "activate",
-  (event: ExtendableEvent) => {
-    event.waitUntil((self as unknown as SWScope).clients.claim());
-  }
-);
+(self as unknown as SWScope).addEventListener("activate", (event: Event) => {
+  (event as Event & { waitUntil(p: Promise<unknown>): void }).waitUntil(
+    (self as unknown as SWScope).clients.claim()
+  );
+});

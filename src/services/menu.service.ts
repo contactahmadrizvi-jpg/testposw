@@ -4,7 +4,12 @@ import { DEFAULT_MENU_CATEGORIES } from "@/data/default-menu-categories";
 import { getFirestoreDb } from "@/lib/firebase/config";
 import { stripUndefined } from "@/lib/utils";
 import type { MenuCategory, MenuItem, Deal } from "@/types";
-import { BaseRepository, where, orderBy, limit } from "./base.repository";
+import { BaseRepository, where, orderBy } from "./base.repository";
+import {
+  cacheCategories,
+  cacheMenuItems,
+  cacheDeals,
+} from "@/lib/menu-cache";
 
 const categoriesRepo = new BaseRepository<MenuCategory>(COLLECTIONS.menuCategories);
 const itemsRepo = new BaseRepository<MenuItem>(COLLECTIONS.menuItems);
@@ -38,8 +43,7 @@ export async function getActiveCategories(): Promise<MenuCategory[]> {
   await ensureDefaultCategories();
   const all = await categoriesRepo.getAll([orderBy("sortOrder")]);
   const active = all.filter((c) => c.isActive);
-  // Persist to offline cache
-  import("@/lib/menu-cache").then(({ cacheCategories }) => cacheCategories(active)).catch(() => {});
+  cacheCategories(active);
   return active;
 }
 
@@ -77,18 +81,16 @@ export async function getFeaturedItems(): Promise<MenuItem[]> {
 export function subscribeMenuItems(callback: (items: MenuItem[]) => void): () => void {
   return itemsRepo.subscribe([orderBy("sortOrder")], (items) => {
     const normalized = normalizeMenuItems(items.filter((i) => i.isAvailable !== false));
-    // Persist to offline cache every time Firebase emits fresh data
-    import("@/lib/menu-cache").then(({ cacheMenuItems }) => cacheMenuItems(normalized)).catch(() => {});
+    // Write to localStorage cache synchronously so offline reads always work
+    cacheMenuItems(normalized);
     callback(normalized);
   });
 }
 
 export async function getActiveDeals(): Promise<Deal[]> {
   const deals = await dealsRepo.getAll([where("isActive", "==", true)]);
-  // Persist to offline cache
-  import("@/lib/menu-cache").then(({ cacheDeals }) => cacheDeals(deals)).catch(() => {});
+  cacheDeals(deals);
   return deals;
 }
-
 
 export { categoriesRepo, itemsRepo, dealsRepo };
