@@ -33,10 +33,19 @@ const manifest = (
 
 const serwist = new Serwist({
   precacheEntries: manifest,
-
   skipWaiting: true,
   clientsClaim: false,
   navigationPreload: false,
+
+  // Fallback pages when offline and no cache exists
+  fallbacks: {
+    entries: [
+      {
+        url: "/offline.html",
+        matcher: ({ request }) => request.destination === "document",
+      },
+    ],
+  },
 
   runtimeCaching: [
     // ── Critical offline pages — CacheFirst with network update ──
@@ -74,21 +83,16 @@ const serwist = new Serwist({
     },
 
     // ── HTML page navigations — NetworkFirst, falls back to cache ──
-    // Use a short 4s timeout. If the network is completely down, the
-    // NetworkFirst handler falls back to the cached copy.
-    // This prevents React hydration mismatches (#418) because online
-    // users always get fresh HTML, and offline users get the cache.
     {
       matcher: ({ request }: { request: Request }) =>
         request.mode === "navigate",
       handler: new NetworkFirst({
         cacheName: "pages-cache",
-        networkTimeoutSeconds: 4,
+        networkTimeoutSeconds: 3,
         plugins: [
           new ExpirationPlugin({
             maxEntries: 64,
-            // Cache pages for 7 days for offline support
-            maxAgeSeconds: 7 * 24 * 60 * 60,
+            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days for offline support
           }),
         ],
       }),
@@ -135,68 +139,28 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
-// Custom offline fallback for navigation requests
-(self as unknown as SWScope).addEventListener("fetch", async (event: Event) => {
-  const fetchEvent = event as FetchEvent;
-  const { request } = fetchEvent;
-  
-  // Only handle navigation requests (page loads)
-  if (request.mode !== "navigate") return;
-
-  fetchEvent.respondWith(
-    (async () => {
-      try {
-        // Try network first with short timeout
-        const networkResponse = await Promise.race([
-          fetch(request),
-          new Promise<Response>((_, reject) => 
-            setTimeout(() => reject(new Error("timeout")), 4000)
-          )
-        ]);
-        
-        // Cache successful response
-        if (networkResponse.ok) {
-          const cache = await caches.open("pages-cache");
-          cache.put(request, networkResponse.clone());
-        }
-        
-        return networkResponse;
-      } catch (networkError) {
-        // Network failed, try cache
-        const cachedResponse = await caches.match(request);
-        if (cachedResponse) {
-          console.log("[SW] Serving from cache:", request.url);
-          return cachedResponse;
-        }
-        
-        // No cache, show offline page
-        console.log("[SW] No cache, serving offline fallback");
-        const offlinePage = await caches.match("/offline.html");
-        return offlinePage || new Response("Offline - No cached content available", {
-          status: 503,
-          statusText: "Service Unavailable"
-        });
-      }
-    })()
-  );
-});
-
-// Claim clients manually after activation — avoids the race condition
-// where clientsClaim() fires before the SW is active.
-// Use plain Event type to stay within the dom lib (no webworker lib needed).
+// Type definitions for SW events
 type SWScope = WorkerGlobalScope & {
   addEventListener(type: string, listener: (event: Event) => void): void;
   clients: { claim(): Promise<void> };
-  navigator: { onLine: boolean };
 };
 
-type FetchEvent = Event & {
-  request: Request;
-  respondWith(response: Promise<Response> | Response): void;
-};
-
+// Precache the offline fallback page on activation
 (self as unknown as SWScope).addEventListener("activate", (event: Event) => {
+  console.log("[SW] Activating...");
   (event as Event & { waitUntil(p: Promise<unknown>): void }).waitUntil(
-    (self as unknown as SWScope).clients.claim()
+    (async () => {
+      // Ensure offline.html is cached
+      try {
+        const cache = await caches.open("offline-fallback");
+        await cache.add("/offline.html");
+        console.log("[SW] Offline fallback cached");
+      } catch (e) {
+        console.warn("[SW] Failed to cache offline fallback:", e);
+      }
+      // Claim clients after SW is fully active
+      await (self as unknown as SWScope).clients.claim();
+      console.log("[SW] Activated and claimed clients");
+    })()
   );
 });
