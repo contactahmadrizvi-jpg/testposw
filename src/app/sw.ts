@@ -2,11 +2,11 @@
  * sw.ts — Serwist/Workbox service worker for SOMO POS
  *
  * Offline strategy:
- *  • Navigation (HTML pages) → NetworkFirst with 4s timeout, cache fallback
- *  • Next.js static assets   → CacheFirst (hashed filenames, safe forever)
+ *  • Navigation (HTML pages) → NetworkFirst 4s timeout → cache fallback
+ *  • Next.js static assets   → CacheFirst (content-hashed, safe forever)
  *  • Menu images             → StaleWhileRevalidate (7-day cache)
  *  • Google Fonts            → CacheFirst (1-year cache)
- *  • Everything else         → Serwist defaultCache rules
+ *  • Everything else         → Serwist defaultCache
  */
 
 import { defaultCache } from "@serwist/next/worker";
@@ -27,18 +27,27 @@ declare global {
 
 declare const self: WorkerGlobalScope & typeof globalThis;
 
+const manifest = (
+  self as unknown as { __SW_MANIFEST: (PrecacheEntry | string)[] | undefined }
+).__SW_MANIFEST;
+
 const serwist = new Serwist({
-  precacheEntries: (self as unknown as { __SW_MANIFEST: (PrecacheEntry | string)[] | undefined }).__SW_MANIFEST,
+  precacheEntries: manifest,
+
+  // skipWaiting: true makes the new SW take over immediately on install.
+  // clientsClaim is intentionally false here — we call clients.claim()
+  // manually inside the activate event AFTER the SW is fully active,
+  // which avoids the "Only the active worker can claim clients" error.
   skipWaiting: true,
-  clientsClaim: true,
-  // Disable navigationPreload — it can cause ERR_FAILED when completely
-  // offline because the preload request itself fails before the SW can
-  // serve from cache.
+  clientsClaim: false,
+
+  // navigationPreload disabled — causes ERR_FAILED when completely offline
+  // because the browser tries to start the preload request before the SW
+  // intercept fires, and that request fails with no network.
   navigationPreload: false,
 
   runtimeCaching: [
-    // ── Next.js static assets (_next/static) ── MUST be first / highest priority
-    // These are content-hashed so CacheFirst is safe forever.
+    // ── Next.js static assets — CacheFirst (hashed filenames) ──
     {
       matcher: ({ url }: { url: URL }) =>
         url.pathname.startsWith("/_next/static/") ||
@@ -54,9 +63,11 @@ const serwist = new Serwist({
       }),
     },
 
-    // ── HTML page navigations ──
-    // NetworkFirst with short timeout so offline fallback kicks in fast.
-    // Falls back to precached page from __SW_MANIFEST when offline.
+    // ── HTML page navigations — NetworkFirst, falls back to cache ──
+    // Use a short 4s timeout. If the network is completely down, the
+    // NetworkFirst handler falls back to the cached copy.
+    // This prevents React hydration mismatches (#418) because online
+    // users always get fresh HTML, and offline users get the cache.
     {
       matcher: ({ request }: { request: Request }) =>
         request.mode === "navigate",
@@ -66,7 +77,9 @@ const serwist = new Serwist({
         plugins: [
           new ExpirationPlugin({
             maxEntries: 64,
-            maxAgeSeconds: 24 * 60 * 60,
+            // Only cache pages for 1 hour — short enough that a new
+            // deployment's HTML will be fetched fresh on the next visit.
+            maxAgeSeconds: 60 * 60,
           }),
         ],
       }),
@@ -107,9 +120,20 @@ const serwist = new Serwist({
       }),
     },
 
-    // ── Serwist defaults for everything else ──
     ...defaultCache,
   ],
 });
 
 serwist.addEventListeners();
+
+// Claim clients manually after activation so there's no race condition.
+// This is the correct place — by the time "activate" fires, the SW IS
+// the active worker and clients.claim() is safe to call.
+(self as unknown as ServiceWorkerGlobalScope).addEventListener(
+  "activate",
+  (event: ExtendableEvent) => {
+    event.waitUntil(
+      (self as unknown as ServiceWorkerGlobalScope).clients.claim()
+    );
+  }
+);
