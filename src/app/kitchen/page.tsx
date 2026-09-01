@@ -98,9 +98,17 @@ export default function KitchenPage() {
       : setTimeout(() => setLoading(false), 5000);
 
     const unsubMenu = subscribeMenuItems((items) => {
-      console.log(`[Kitchen] Caching ${items.length} menu items to localStorage`);
-      setMenuItems(items);
-      cacheMenuItems(items);
+      console.log(`[Kitchen] Firebase emitted ${items.length} menu items`);
+      // Only update if we got data, or if we don't have cached data yet
+      if (items.length > 0 || menuItems.length === 0) {
+        setMenuItems(items);
+        if (items.length > 0) {
+          console.log(`[Kitchen] Caching ${items.length} menu items to localStorage`);
+          cacheMenuItems(items);
+        }
+      } else {
+        console.log(`[Kitchen] Ignoring empty Firebase response (keeping ${menuItems.length} cached items)`);
+      }
     });
 
     getActiveDeals().then(setDeals).catch(console.error);

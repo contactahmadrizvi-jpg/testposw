@@ -177,10 +177,18 @@ export default function POSPage() {
 
     const unsub = subscribeMenuItems((items) => {
       if (offlineTimer) clearTimeout(offlineTimer);
-      setMenu(items);
-      setMenuLoading(false);
-      console.log(`[POS] Caching ${items.length} menu items to localStorage`);
-      cacheMenuItems(items); // persist for next offline session
+      // Don't overwrite cache with empty data from failed Firebase connection
+      if (items.length > 0 || !hasCachedData.current) {
+        console.log(`[POS] Firebase emitted ${items.length} items`);
+        setMenu(items);
+        setMenuLoading(false);
+        if (items.length > 0) {
+          console.log(`[POS] Caching ${items.length} menu items to localStorage`);
+          cacheMenuItems(items); // persist for next offline session
+        }
+      } else {
+        console.log(`[POS] Ignoring empty Firebase response (using ${menu.length} cached items)`);
+      }
     });
 
     const unsubKitchen = subscribeKitchenOrders((orders) => {
