@@ -1,11 +1,12 @@
 /**
  * sw.ts — Serwist/Workbox service worker for SOMO POS
  *
- * Caching strategy:
- *  • App shell / JS / CSS  → CacheFirst (long-lived, versioned by build hash)
- *  • Next.js RSC / pages   → NetworkFirst (fresh when online, cached fallback offline)
- *  • Menu images (ibb.co, Firebase Storage, etc.) → StaleWhileRevalidate
- *  • Google Fonts          → CacheFirst
+ * Offline strategy:
+ *  • Navigation (HTML pages) → NetworkFirst with 4s timeout, cache fallback
+ *  • Next.js static assets   → CacheFirst (hashed filenames, safe forever)
+ *  • Menu images             → StaleWhileRevalidate (7-day cache)
+ *  • Google Fonts            → CacheFirst (1-year cache)
+ *  • Everything else         → Serwist defaultCache rules
  */
 
 import { defaultCache } from "@serwist/next/worker";
@@ -18,52 +19,60 @@ import {
   ExpirationPlugin,
 } from "serwist";
 
-// Serwist injects the precache manifest here at build time.
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
     __SW_MANIFEST: (PrecacheEntry | string)[] | undefined;
   }
 }
 
-// Use WorkerGlobalScope (present in webworker lib) instead of
-// ServiceWorkerGlobalScope (not available in dom lib).
 declare const self: WorkerGlobalScope & typeof globalThis;
 
 const serwist = new Serwist({
   precacheEntries: (self as unknown as { __SW_MANIFEST: (PrecacheEntry | string)[] | undefined }).__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
-  navigationPreload: true,
+  // Disable navigationPreload — it can cause ERR_FAILED when completely
+  // offline because the preload request itself fails before the SW can
+  // serve from cache.
+  navigationPreload: false,
 
   runtimeCaching: [
-    // ── Next.js pages — NetworkFirst so updates always come through ──
+    // ── Next.js static assets (_next/static) ── MUST be first / highest priority
+    // These are content-hashed so CacheFirst is safe forever.
     {
-      matcher: ({ request }: { request: Request }) =>
-        (request as Request & { mode: string }).mode === "navigate",
-      handler: new NetworkFirst({
-        cacheName: "pages-cache",
-        networkTimeoutSeconds: 5,
-        plugins: [
-          new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 }),
-        ],
-      }),
-    },
-
-    // ── Next.js static assets (_next/static) — CacheFirst ──
-    {
-      matcher: ({ url }: { url: URL }) => url.pathname.startsWith("/_next/static/"),
+      matcher: ({ url }: { url: URL }) =>
+        url.pathname.startsWith("/_next/static/") ||
+        url.pathname.startsWith("/static/"),
       handler: new CacheFirst({
         cacheName: "next-static",
         plugins: [
           new ExpirationPlugin({
-            maxEntries: 500,
-            maxAgeSeconds: 30 * 24 * 60 * 60,
+            maxEntries: 1000,
+            maxAgeSeconds: 365 * 24 * 60 * 60,
           }),
         ],
       }),
     },
 
-    // ── Menu / food images from all allowed hosts ──
+    // ── HTML page navigations ──
+    // NetworkFirst with short timeout so offline fallback kicks in fast.
+    // Falls back to precached page from __SW_MANIFEST when offline.
+    {
+      matcher: ({ request }: { request: Request }) =>
+        request.mode === "navigate",
+      handler: new NetworkFirst({
+        cacheName: "pages-cache",
+        networkTimeoutSeconds: 4,
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 64,
+            maxAgeSeconds: 24 * 60 * 60,
+          }),
+        ],
+      }),
+    },
+
+    // ── Menu / food images ──
     {
       matcher: ({ url }: { url: URL }) =>
         url.hostname === "i.ibb.co" ||
@@ -98,7 +107,7 @@ const serwist = new Serwist({
       }),
     },
 
-    // ── Fallthrough ──
+    // ── Serwist defaults for everything else ──
     ...defaultCache,
   ],
 });
