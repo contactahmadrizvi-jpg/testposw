@@ -120,6 +120,11 @@ export default function POSPage() {
   const hasCachedData = useRef(false);
   useLayoutEffect(() => {
     console.log("[POS] useLayoutEffect running, checking cache...");
+    console.log("[POS] localStorage test:", {
+      available: typeof localStorage !== 'undefined',
+      itemsKey: 'offline_menu_items',
+      itemsRaw: localStorage.getItem('offline_menu_items')?.substring(0, 100)
+    });
     const cachedItems = loadCachedMenuItems();
     const cachedCats = loadCachedCategories();
     const cachedDeals = loadCachedDeals();
@@ -135,6 +140,7 @@ export default function POSPage() {
       hasCachedData.current = true; // prevent offline timer from re-enabling skeleton
     } else {
       console.warn("[POS] ⚠️ No cached menu items found in localStorage!");
+      console.warn("[POS] localStorage dump:", Object.keys(localStorage));
     }
     if (cachedCats.length > 0) setCategories(cachedCats);
     if (cachedDeals.length > 0) setDeals(cachedDeals);

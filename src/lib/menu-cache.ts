@@ -32,8 +32,13 @@ function safeGet<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
+    console.log(`[Cache] safeGet(${key}): ${raw ? `${raw.length} chars` : 'null'}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as T;
+    console.log(`[Cache] safeGet(${key}): parsed successfully, type=${typeof parsed}`);
+    return parsed;
+  } catch (error) {
+    console.error(`[Cache] safeGet(${key}) failed:`, error);
     return null;
   }
 }
@@ -59,10 +64,17 @@ export function cacheCategories(categories: MenuCategory[]): void {
 
 export function cacheMenuItems(items: MenuItem[]): void {
   console.log("[Cache] cacheMenuItems() called with", items.length, "items");
+  console.log("[Cache] First item sample:", items[0]?.name);
   try {
     const serialized = JSON.stringify(items);
     console.log("[Cache] Serialized size:", (serialized.length / 1024).toFixed(2), "KB");
+    console.log("[Cache] Writing to key:", KEYS.items);
     localStorage.setItem(KEYS.items, serialized);
+    
+    // Verify it was written
+    const verification = localStorage.getItem(KEYS.items);
+    console.log("[Cache] Verification read:", verification ? `${(verification.length / 1024).toFixed(2)} KB` : "NULL");
+    
     console.log("[Cache] ✅ Successfully wrote menu items to localStorage");
     safeSet(KEYS.lastSync, new Date().toISOString());
     // Fire-and-forget image pre-cache
