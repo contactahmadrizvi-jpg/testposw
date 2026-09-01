@@ -70,25 +70,7 @@ export default function POSPage() {
   const authLoading = useAuthStore((s) => s.loading);
 
   // Start with empty/loading state (safe for SSR).
-  // We populate from localStorage in useLayoutEffect below — this runs
-  // synchronously on the client before the first paint, so there's no
-  // flash of skeleton when offline cache exists.
-  const [menu, setMenuInternal] = useState<MenuItem[]>([]);
-  const hasCachedData = useRef(false);
-  
-  // Protected menu setter - prevents overwriting cached data with empty arrays
-  const setMenu = useCallback((newMenu: MenuItem[]) => {
-    setMenuInternal(current => {
-      // If trying to set empty array but we have cached data, ignore it
-      if (newMenu.length === 0 && current.length > 0 && hasCachedData.current) {
-        console.warn("[POS] 🛡️ Blocked attempt to clear menu items (protecting cached data)");
-        return current; // Keep existing data
-      }
-      console.log(`[POS] Menu state updated: ${current.length} → ${newMenu.length} items`);
-      return newMenu;
-    });
-  }, []);
-  
+  const [menu, setMenu] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [search, setSearch] = useState("");
@@ -127,34 +109,16 @@ export default function POSPage() {
     setCustomer,
   } = usePOSStore();
 
-  // ── Auth permission guard — separate effect so it never blocks menu loading ──
-  // ── Seed from localStorage cache before first paint (client-only) ──
-  // useLayoutEffect runs synchronously on the client before the browser
-  // paints — so cached items appear immediately with no skeleton flash.
-  // It never runs on the server, so no SSR mismatch.
+  // ── Load cache immediately on mount (before any Firebase calls) ──
   useLayoutEffect(() => {
-    console.log("[POS] useLayoutEffect running, checking cache...");
-    console.log("[POS] localStorage test:", {
-      available: typeof localStorage !== 'undefined',
-      itemsKey: 'offline_menu_items',
-      itemsRaw: localStorage.getItem('offline_menu_items')?.substring(0, 100)
-    });
-    const cachedItems = loadCachedMenuItems();
+    const cached = loadCachedMenuItems();
     const cachedCats = loadCachedCategories();
     const cachedDeals = loadCachedDeals();
-    console.log("[POS] Cache check results:", {
-      items: cachedItems.length,
-      categories: cachedCats.length,
-      deals: cachedDeals.length
-    });
-    if (cachedItems.length > 0) {
-      console.log(`[POS] ✅ Loaded ${cachedItems.length} cached menu items from localStorage`);
-      setMenu(cachedItems);
+    
+    if (cached.length > 0) {
+      console.log(`[POS] ✅ Loaded ${cached.length} cached items`);
+      setMenu(cached);
       setMenuLoading(false);
-      hasCachedData.current = true; // prevent offline timer from re-enabling skeleton
-    } else {
-      console.warn("[POS] ⚠️ No cached menu items found in localStorage!");
-      console.warn("[POS] localStorage dump:", Object.keys(localStorage));
     }
     if (cachedCats.length > 0) setCategories(cachedCats);
     if (cachedDeals.length > 0) setDeals(cachedDeals);
@@ -171,37 +135,24 @@ export default function POSPage() {
   useEffect(() => {
     preloadPrintHeader();
     const stopSync = startPosSyncWorker();
+    const offlineTimer = setTimeout(() => setMenuLoading(false), 6000);
 
-    // If no cache and Firebase is also unreachable (offline), stop the
-    // skeleton after 6 seconds so the "no items" message shows instead
-    // of an infinite loading spinner.
-    // BUT skip this timer if we already loaded cached data above.
-    const offlineTimer = hasCachedData.current 
-      ? null 
-      : setTimeout(() => setMenuLoading(false), 6000);
-
-    // ── Live Firebase subscriptions (update cache on every emission) ──
+    // ── Firebase subscriptions (only update if we get data) ──
     getActiveCategories()
-      .then((cats) => { setCategories(cats); cacheCategories(cats); })
-      .catch(() => { /* offline — cached data already shown */ });
+      .then((cats) => { if (cats.length > 0) { setCategories(cats); cacheCategories(cats); } })
+      .catch(() => {});
 
     getActiveDeals()
-      .then((d) => { setDeals(d); cacheDeals(d); })
-      .catch(() => { /* offline */ });
+      .then((d) => { if (d.length > 0) { setDeals(d); cacheDeals(d); } })
+      .catch(() => {});
 
     const unsub = subscribeMenuItems((items) => {
-      if (offlineTimer) clearTimeout(offlineTimer);
-      // Don't overwrite cache with empty data from failed Firebase connection
-      if (items.length > 0 || !hasCachedData.current) {
-        console.log(`[POS] Firebase emitted ${items.length} items`);
+      clearTimeout(offlineTimer);
+      // Only update menu if we got data
+      if (items.length > 0) {
         setMenu(items);
         setMenuLoading(false);
-        if (items.length > 0) {
-          console.log(`[POS] Caching ${items.length} menu items to localStorage`);
-          cacheMenuItems(items); // persist for next offline session
-        }
-      } else {
-        console.log(`[POS] Ignoring empty Firebase response (using ${menu.length} cached items)`);
+        cacheMenuItems(items);
       }
     });
 
@@ -211,7 +162,7 @@ export default function POSPage() {
     const loaded = JSON.parse(localStorage.getItem("pos_saved_customers") || "[]");
     setSavedCustomers(loaded);
     return () => {
-      if (offlineTimer) clearTimeout(offlineTimer);
+      clearTimeout(offlineTimer);
       unsub();
       unsubKitchen();
       stopSync();
