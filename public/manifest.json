@@ -5,8 +5,8 @@
   "start_url": "/pos-kitchen",
   "display": "standalone",
   "orientation": "landscape",
-  "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "background_color": "#1a0a0a",
+  "theme_color": "#ff6b6b",
   "categories": ["food", "business", "productivity"],
   "prefer_related_applications": false,
   "icons": [

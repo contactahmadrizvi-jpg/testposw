@@ -126,7 +126,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-gradient-to-br from-white via-blue-50 to-white">
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-gradient-to-br from-background via-primary/5 to-background">
         <motion.div
           animate={{ 
             y: [0, -20, 0], 
@@ -139,7 +139,7 @@ export default function HomePage() {
           🍔
         </motion.div>
         <div className="flex flex-col items-center gap-2">
-          <p className="animate-pulse text-2xl font-black bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+          <p className="animate-pulse text-2xl font-black text-primary">
             Preparing your experience...
           </p>
           <div className="flex gap-1.5">
@@ -167,16 +167,16 @@ export default function HomePage() {
   return (
     <div>
       {/* ── Hero ── */}
-      <section className="relative min-h-[min(85vh,720px)] overflow-hidden bg-gradient-to-br from-blue-50 via-white to-blue-50">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMzYjgyZjYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE0YzMuMzEgMCA2LTIuNjkgNi02cy0yLjY5LTYtNi02LTYgMi42OS02IDYgMi42OSA2IDYgNnptMCA0MGMzLjMxIDAgNi0yLjY5IDYtNnMtMi42OS02LTYtNi02IDIuNjktNiA2IDIuNjkgNiA2IDZ6bS0yMCAwYzMuMzEgMCA2LTIuNjkgNi02cy0yLjY5LTYtNi02LTYgMi42OS02IDYgMi42OSA2IDYgNnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-40"></div>
+      <section className="relative min-h-[min(85vh,720px)] overflow-hidden bg-gradient-to-br from-background via-primary/5 to-background">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZjZiNmIiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE0YzMuMzEgMCA2LTIuNjkgNi02cy0yLjY5LTYtNi02LTYgMi42OS02IDYgMi42OSA2IDYgNnptMCA0MGMzLjMxIDAgNi0yLjY5IDYtNnMtMi42OS02LTYtNi02IDIuNjktNiA2IDIuNjkgNiA2IDZ6bS0yMCAwYzMuMzEgMCA2LTIuNjkgNi02cy0yLjY5LTYtNi02LTYgMi42OS02IDYgMi42OSA2IDYgNnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30"></div>
         <Image
           src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1920&q=85"
           alt="Fresh pizza and burgers"
           fill priority
-          className="object-cover opacity-30 mix-blend-multiply"
+          className="object-cover opacity-20 mix-blend-lighten"
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/80 to-transparent" />
         <div className="relative mx-auto flex min-h-[min(85vh,720px)] max-w-7xl items-center px-4 py-16 lg:py-24">
           <motion.div 
             initial={{ opacity: 0, y: 32 }} 
@@ -188,7 +188,7 @@ export default function HomePage() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-primary/10 to-blue-600/10 backdrop-blur-sm px-4 py-2 rounded-full border border-primary/20 shadow-sm mb-5"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-primary/20 to-accent/20 backdrop-blur-sm px-4 py-2 rounded-full border border-primary/30 shadow-lg mb-5"
             >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -205,7 +205,7 @@ export default function HomePage() {
               transition={{ delay: 0.3 }}
               className="mt-3 text-5xl font-black leading-[1.05] md:text-6xl lg:text-7xl"
             >
-              <span className="bg-gradient-to-r from-primary via-blue-600 to-primary bg-clip-text text-transparent">
+              <span className="text-primary drop-shadow-lg">
                 Delicious Food,
               </span>
               <br />
@@ -228,13 +228,13 @@ export default function HomePage() {
               className="mt-8 flex flex-wrap gap-4"
             >
               <Link href="/menu">
-                <Button size="lg" className="gap-2 bg-gradient-to-r from-primary to-blue-600 text-lg font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all rounded-xl px-8 py-6 h-auto">
+                <Button size="lg" className="gap-2 btn-premium text-lg font-bold px-8 py-6 h-auto">
                   Order Now <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
               <Link href="/track">
                 <Button size="lg" variant="outline"
-                  className="border-2 border-primary/30 bg-white/80 backdrop-blur text-lg font-bold hover:bg-primary/5 hover:border-primary rounded-xl px-8 py-6 h-auto shadow-md hover:shadow-lg transition-all">
+                  className="border-2 border-primary/40 bg-card/80 backdrop-blur text-lg font-bold text-foreground hover:bg-primary/10 hover:border-primary rounded-xl px-8 py-6 h-auto shadow-lg hover:shadow-xl transition-all">
                   Track Order
                 </Button>
               </Link>

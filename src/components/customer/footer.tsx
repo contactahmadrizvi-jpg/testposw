@@ -4,10 +4,10 @@ import { RESTAURANT } from "@/constants";
 
 export function CustomerFooter() {
   return (
-    <footer className="mt-auto border-t bg-gradient-to-b from-white to-slate-50">
+    <footer className="mt-auto border-t border-border/50 bg-gradient-to-b from-card/80 to-card/60 backdrop-blur-sm">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 md:grid-cols-3 lg:px-8">
         <div>
-          <h3 className="text-xl font-black bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+          <h3 className="text-xl font-black text-foreground">
             {RESTAURANT.name}
           </h3>
           <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
@@ -61,7 +61,7 @@ export function CustomerFooter() {
           </div>
         </div>
       </div>
-      <div className="border-t bg-white/80 py-4 text-center text-xs text-muted-foreground">
+      <div className="border-t border-border/30 bg-card/60 py-4 text-center text-xs text-muted-foreground">
         <p>© {new Date().getFullYear()} <span className="font-bold text-primary">{RESTAURANT.name}</span>. All rights reserved.</p>
       </div>
     </footer>
