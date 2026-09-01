@@ -81,8 +81,11 @@ export async function getFeaturedItems(): Promise<MenuItem[]> {
 export function subscribeMenuItems(callback: (items: MenuItem[]) => void): () => void {
   return itemsRepo.subscribe([orderBy("sortOrder")], (items) => {
     const normalized = normalizeMenuItems(items.filter((i) => i.isAvailable !== false));
-    // Write to localStorage cache synchronously so offline reads always work
-    cacheMenuItems(normalized);
+    // Only cache if we got valid data
+    if (normalized.length > 0) {
+      // Write to localStorage cache synchronously so offline reads always work
+      cacheMenuItems(normalized);
+    }
     callback(normalized);
   });
 }

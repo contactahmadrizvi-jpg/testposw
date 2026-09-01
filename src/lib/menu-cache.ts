@@ -64,6 +64,13 @@ export function cacheCategories(categories: MenuCategory[]): void {
 
 export function cacheMenuItems(items: MenuItem[]): void {
   console.log("[Cache] cacheMenuItems() called with", items.length, "items");
+  
+  // CRITICAL: Don't cache empty arrays - this would overwrite valid cached data!
+  if (items.length === 0) {
+    console.warn("[Cache] ⚠️ Refusing to cache empty menu items array (would lose cached data)");
+    return;
+  }
+  
   console.log("[Cache] First item sample:", items[0]?.name);
   try {
     const serialized = JSON.stringify(items);

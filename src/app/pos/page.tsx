@@ -73,7 +73,21 @@ export default function POSPage() {
   // We populate from localStorage in useLayoutEffect below — this runs
   // synchronously on the client before the first paint, so there's no
   // flash of skeleton when offline cache exists.
-  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [menu, setMenuInternal] = useState<MenuItem[]>([]);
+  
+  // Protected menu setter - prevents overwriting cached data with empty arrays
+  const setMenu = useCallback((newMenu: MenuItem[]) => {
+    setMenuInternal(current => {
+      // If trying to set empty array but we have cached data, ignore it
+      if (newMenu.length === 0 && current.length > 0 && hasCachedData.current) {
+        console.warn("[POS] 🛡️ Blocked attempt to clear menu items (protecting cached data)");
+        return current; // Keep existing data
+      }
+      console.log(`[POS] Menu state updated: ${current.length} → ${newMenu.length} items`);
+      return newMenu;
+    });
+  }, []);
+  
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [search, setSearch] = useState("");
