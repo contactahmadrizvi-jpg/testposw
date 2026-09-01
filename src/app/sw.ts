@@ -34,19 +34,29 @@ const manifest = (
 const serwist = new Serwist({
   precacheEntries: manifest,
 
-  // skipWaiting: true makes the new SW take over immediately on install.
-  // clientsClaim is intentionally false here — we call clients.claim()
-  // manually inside the activate event AFTER the SW is fully active,
-  // which avoids the "Only the active worker can claim clients" error.
   skipWaiting: true,
   clientsClaim: false,
-
-  // navigationPreload disabled — causes ERR_FAILED when completely offline
-  // because the browser tries to start the preload request before the SW
-  // intercept fires, and that request fails with no network.
   navigationPreload: false,
 
   runtimeCaching: [
+    // ── Critical offline pages — CacheFirst with network update ──
+    // These pages MUST work offline, so we aggressively cache them
+    {
+      matcher: ({ url }: { url: URL }) =>
+        url.pathname === "/pos-kitchen" ||
+        url.pathname === "/pos" ||
+        url.pathname === "/kitchen",
+      handler: new StaleWhileRevalidate({
+        cacheName: "offline-pages",
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 10,
+            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+          }),
+        ],
+      }),
+    },
+
     // ── Next.js static assets — CacheFirst (hashed filenames) ──
     {
       matcher: ({ url }: { url: URL }) =>
@@ -77,9 +87,8 @@ const serwist = new Serwist({
         plugins: [
           new ExpirationPlugin({
             maxEntries: 64,
-            // Only cache pages for 1 hour — short enough that a new
-            // deployment's HTML will be fetched fresh on the next visit.
-            maxAgeSeconds: 60 * 60,
+            // Cache pages for 7 days for offline support
+            maxAgeSeconds: 7 * 24 * 60 * 60,
           }),
         ],
       }),
@@ -126,12 +135,64 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
+// Custom offline fallback for navigation requests
+(self as unknown as SWScope).addEventListener("fetch", async (event: Event) => {
+  const fetchEvent = event as FetchEvent;
+  const { request } = fetchEvent;
+  
+  // Only handle navigation requests (page loads)
+  if (request.mode !== "navigate") return;
+
+  fetchEvent.respondWith(
+    (async () => {
+      try {
+        // Try network first with short timeout
+        const networkResponse = await Promise.race([
+          fetch(request),
+          new Promise<Response>((_, reject) => 
+            setTimeout(() => reject(new Error("timeout")), 4000)
+          )
+        ]);
+        
+        // Cache successful response
+        if (networkResponse.ok) {
+          const cache = await caches.open("pages-cache");
+          cache.put(request, networkResponse.clone());
+        }
+        
+        return networkResponse;
+      } catch (networkError) {
+        // Network failed, try cache
+        const cachedResponse = await caches.match(request);
+        if (cachedResponse) {
+          console.log("[SW] Serving from cache:", request.url);
+          return cachedResponse;
+        }
+        
+        // No cache, show offline page
+        console.log("[SW] No cache, serving offline fallback");
+        const offlinePage = await caches.match("/offline.html");
+        return offlinePage || new Response("Offline - No cached content available", {
+          status: 503,
+          statusText: "Service Unavailable"
+        });
+      }
+    })()
+  );
+});
+
 // Claim clients manually after activation — avoids the race condition
 // where clientsClaim() fires before the SW is active.
 // Use plain Event type to stay within the dom lib (no webworker lib needed).
 type SWScope = WorkerGlobalScope & {
   addEventListener(type: string, listener: (event: Event) => void): void;
   clients: { claim(): Promise<void> };
+  navigator: { onLine: boolean };
+};
+
+type FetchEvent = Event & {
+  request: Request;
+  respondWith(response: Promise<Response> | Response): void;
 };
 
 (self as unknown as SWScope).addEventListener("activate", (event: Event) => {

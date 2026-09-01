@@ -11,6 +11,7 @@ const withSerwist = withSerwistInit({
   // Precache the key app pages so they work offline immediately after
   // the first online visit — no extra cache-warming step required.
   additionalPrecacheEntries: [
+    { url: "/offline.html", revision: null },
     { url: "/pos-kitchen", revision: null },
     { url: "/pos", revision: null },
     { url: "/kitchen", revision: null },
