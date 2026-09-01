@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MenuItemImage } from "@/components/menu-item-image";
@@ -69,20 +69,17 @@ export default function POSPage() {
   const profile = useAuthStore((s) => s.profile);
   const authLoading = useAuthStore((s) => s.loading);
 
-  // ── Initialise from localStorage cache synchronously on first render ──
-  // This guarantees menu items are visible immediately even before the
-  // useEffect runs and before Firebase responds, so offline mode works.
-  const [menu, setMenu] = useState<MenuItem[]>(() => loadCachedMenuItems());
-  const [categories, setCategories] = useState<MenuCategory[]>(() => loadCachedCategories());
-  const [deals, setDeals] = useState<Deal[]>(() => loadCachedDeals());
+  // Start with empty/loading state (safe for SSR).
+  // We populate from localStorage in useLayoutEffect below — this runs
+  // synchronously on the client before the first paint, so there's no
+  // flash of skeleton when offline cache exists.
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [paying, setPaying] = useState(false);
-  // If we already have cached items, skip the loading skeleton entirely
-  const [menuLoading, setMenuLoading] = useState<boolean>(() => {
-    const cached = loadCachedMenuItems();
-    return cached.length === 0; // true = show skeleton only if no cache
-  });
+  const [menuLoading, setMenuLoading] = useState(true);
   const [showDialpad, setShowDialpad] = useState(false);
   const [cartStep, setCartStep] = useState<"cart" | "details">("cart");
 
@@ -116,6 +113,23 @@ export default function POSPage() {
   } = usePOSStore();
 
   // ── Auth permission guard — separate effect so it never blocks menu loading ──
+  // ── Seed from localStorage cache before first paint (client-only) ──
+  // useLayoutEffect runs synchronously on the client before the browser
+  // paints — so cached items appear immediately with no skeleton flash.
+  // It never runs on the server, so no SSR mismatch.
+  useLayoutEffect(() => {
+    const cachedItems = loadCachedMenuItems();
+    const cachedCats = loadCachedCategories();
+    const cachedDeals = loadCachedDeals();
+    if (cachedItems.length > 0) {
+      setMenu(cachedItems);
+      setMenuLoading(false);
+    }
+    if (cachedCats.length > 0) setCategories(cachedCats);
+    if (cachedDeals.length > 0) setDeals(cachedDeals);
+  }, []);
+
+  // ── Auth permission guard ──
   useEffect(() => {
     if (authLoading) return;
     if (profile && !userHasPermission(profile, "pos") && !userHasPermission(profile, "*")) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { cn, parseDate, formatCurrency } from "@/lib/utils";
@@ -20,11 +20,22 @@ import { OfflineIndicator } from "@/components/offline-indicator";
 import { cacheMenuItems, loadCachedMenuItems } from "@/lib/menu-cache";
 
 export default function KitchenPage() {
-  const [orders, setOrders] = useState<Order[]>(() => getPendingKitchenOrders());
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => loadCachedMenuItems());
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(() => getPendingKitchenOrders().length === 0);
+  const [loading, setLoading] = useState(true);
   const prevCount = useRef(0);
+
+  // ── Seed from localStorage before first paint (client-only, no SSR mismatch) ──
+  useLayoutEffect(() => {
+    const cachedItems = loadCachedMenuItems();
+    const localOrders = getPendingKitchenOrders();
+    if (cachedItems.length > 0) setMenuItems(cachedItems);
+    if (localOrders.length > 0) {
+      setOrders(localOrders);
+      setLoading(false);
+    }
+  }, []);
 
   // Tabs state
   const [activeTab, setActiveTab] = useState<"cooking" | "payment_pending" | "website_orders">("cooking");
@@ -74,6 +85,9 @@ export default function KitchenPage() {
       apply();
     });
 
+    // Stop skeleton after 5s if Firebase never responds (offline with no local orders)
+    const offlineTimer = setTimeout(() => setLoading(false), 5000);
+
     const unsubMenu = subscribeMenuItems((items) => {
       setMenuItems(items);
       cacheMenuItems(items);
@@ -86,6 +100,7 @@ export default function KitchenPage() {
     window.addEventListener("storage", onPending);
 
     return () => {
+      clearTimeout(offlineTimer);
       unsub();
       unsubMenu();
       window.removeEventListener("rush-pos-pending", onPending);
