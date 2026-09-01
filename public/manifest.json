@@ -10,8 +10,8 @@
   "categories": ["food", "business", "productivity"],
   "prefer_related_applications": false,
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/logo.jpeg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any maskable" },
+    { "src": "/logo.jpeg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any maskable" }
   ],
   "shortcuts": [
     {
@@ -19,14 +19,14 @@
       "short_name": "POS",
       "description": "Open Point of Sale",
       "url": "/pos",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/logo.jpeg", "sizes": "192x192" }]
     },
     {
       "name": "Kitchen Display",
       "short_name": "Kitchen",
       "description": "Open Kitchen Display System",
       "url": "/kitchen",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/logo.jpeg", "sizes": "192x192" }]
     }
   ]
 }

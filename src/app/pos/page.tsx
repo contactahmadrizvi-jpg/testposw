@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MenuItemImage } from "@/components/menu-item-image";
@@ -117,6 +117,7 @@ export default function POSPage() {
   // useLayoutEffect runs synchronously on the client before the browser
   // paints — so cached items appear immediately with no skeleton flash.
   // It never runs on the server, so no SSR mismatch.
+  const hasCachedData = useRef(false);
   useLayoutEffect(() => {
     const cachedItems = loadCachedMenuItems();
     const cachedCats = loadCachedCategories();
@@ -124,6 +125,7 @@ export default function POSPage() {
     if (cachedItems.length > 0) {
       setMenu(cachedItems);
       setMenuLoading(false);
+      hasCachedData.current = true; // prevent offline timer from re-enabling skeleton
     }
     if (cachedCats.length > 0) setCategories(cachedCats);
     if (cachedDeals.length > 0) setDeals(cachedDeals);
@@ -144,7 +146,10 @@ export default function POSPage() {
     // If no cache and Firebase is also unreachable (offline), stop the
     // skeleton after 6 seconds so the "no items" message shows instead
     // of an infinite loading spinner.
-    const offlineTimer = setTimeout(() => setMenuLoading(false), 6000);
+    // BUT skip this timer if we already loaded cached data above.
+    const offlineTimer = hasCachedData.current 
+      ? null 
+      : setTimeout(() => setMenuLoading(false), 6000);
 
     // ── Live Firebase subscriptions (update cache on every emission) ──
     getActiveCategories()
@@ -156,7 +161,7 @@ export default function POSPage() {
       .catch(() => { /* offline */ });
 
     const unsub = subscribeMenuItems((items) => {
-      clearTimeout(offlineTimer);
+      if (offlineTimer) clearTimeout(offlineTimer);
       setMenu(items);
       setMenuLoading(false);
       cacheMenuItems(items); // persist for next offline session
@@ -168,7 +173,7 @@ export default function POSPage() {
     const loaded = JSON.parse(localStorage.getItem("pos_saved_customers") || "[]");
     setSavedCustomers(loaded);
     return () => {
-      clearTimeout(offlineTimer);
+      if (offlineTimer) clearTimeout(offlineTimer);
       unsub();
       unsubKitchen();
       stopSync();

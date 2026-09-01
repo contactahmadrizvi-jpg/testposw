@@ -25,6 +25,7 @@ export default function KitchenPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const prevCount = useRef(0);
+  const hasCachedData = useRef(false);
 
   // ── Seed from localStorage before first paint (client-only, no SSR mismatch) ──
   useLayoutEffect(() => {
@@ -34,6 +35,7 @@ export default function KitchenPage() {
     if (localOrders.length > 0) {
       setOrders(localOrders);
       setLoading(false);
+      hasCachedData.current = true;
     }
   }, []);
 
@@ -86,7 +88,10 @@ export default function KitchenPage() {
     });
 
     // Stop skeleton after 5s if Firebase never responds (offline with no local orders)
-    const offlineTimer = setTimeout(() => setLoading(false), 5000);
+    // BUT skip this timer if we already loaded cached data above.
+    const offlineTimer = hasCachedData.current 
+      ? null 
+      : setTimeout(() => setLoading(false), 5000);
 
     const unsubMenu = subscribeMenuItems((items) => {
       setMenuItems(items);
@@ -100,7 +105,7 @@ export default function KitchenPage() {
     window.addEventListener("storage", onPending);
 
     return () => {
-      clearTimeout(offlineTimer);
+      if (offlineTimer) clearTimeout(offlineTimer);
       unsub();
       unsubMenu();
       window.removeEventListener("rush-pos-pending", onPending);
