@@ -1,0 +1,178 @@
+import { RESTAURANT } from "@/constants";
+import type { CreateOrderInput } from "@/services/orders.service";
+import type { Order, KitchenStatus } from "@/types";
+
+const PENDING_KEY = "rush_pos_pending_orders";
+const DAILY_KEY_PREFIX = "rush_pos_daily_";
+
+function todayKey(): string {
+  // Use Pakistan Standard Time (UTC+5) so the counter resets at midnight PKT
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" });
+}
+
+export function bumpLocalDailyNumber(): number {
+  const key = `${DAILY_KEY_PREFIX}${todayKey()}`;
+  const next = (parseInt(localStorage.getItem(key) ?? "0", 10) || 0) + 1;
+  localStorage.setItem(key, String(next));
+  return next;
+}
+
+export type PendingPosOrder = {
+  localId: string;
+  input: CreateOrderInput;
+  order: Order;
+  createdAt: string;
+  syncAttempts: number;
+};
+
+function readPending(): PendingPosOrder[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(PENDING_KEY);
+    return raw ? (JSON.parse(raw) as PendingPosOrder[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePending(list: PendingPosOrder[]) {
+  localStorage.setItem(PENDING_KEY, JSON.stringify(list));
+}
+
+export function buildInstantPosOrder(input: CreateOrderInput): PendingPosOrder {
+  const now = new Date().toISOString();
+  const dailyOrderNumber = bumpLocalDailyNumber();
+  const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const order: Order = {
+    id: localId,
+    orderNumber: String(dailyOrderNumber),
+    dailyOrderNumber,
+    customerName: input.customerName,
+    customerPhone: input.customerPhone,
+    type: input.type,
+    status: "received",
+    kitchenStatus: "new",
+    items: input.items,
+    subtotal: input.subtotal,
+    tax: input.tax,
+    deliveryCharge: input.deliveryCharge,
+    discount: input.discount,
+    total: input.total,
+    paymentMethod: input.paymentMethod,
+    paymentStatus: "pending",
+    branchId: RESTAURANT.defaultBranchId,
+    source: "pos",
+    priority: "normal",
+    createdAt: now,
+    updatedAt: now,
+    tableNumber: input.tableNumber,
+    createdBy: input.createdBy,
+  };
+
+  const pending: PendingPosOrder = {
+    localId,
+    input: {
+      ...input,
+      predefinedDailyOrderNumber: dailyOrderNumber,
+      predefinedOrderNumber: order.orderNumber,
+    },
+    order,
+    createdAt: now,
+    syncAttempts: 0,
+  };
+
+  const list = readPending();
+  list.unshift(pending);
+  writePending(list.slice(0, 50));
+
+  window.dispatchEvent(new CustomEvent("rush-pos-pending", { detail: order }));
+  return pending;
+}
+
+export function getPendingPosOrders(): PendingPosOrder[] {
+  return readPending();
+}
+
+const KITCHEN_DONE = new Set(["served", "delivered", "cancelled"]);
+
+export function getPendingKitchenOrders(): Order[] {
+  return readPending()
+    .map((p) => p.order)
+    .filter((o) => !KITCHEN_DONE.has(o.status) && !KITCHEN_DONE.has(o.kitchenStatus ?? ""));
+}
+
+export function removePendingByLocalId(localId: string) {
+  writePending(readPending().filter((p) => p.localId !== localId));
+}
+
+export function updatePendingOrderStatus(
+  localId: string,
+  status: Order["status"],
+  kitchenStatus: KitchenStatus,
+  paymentMethod?: Order["paymentMethod"]
+) {
+  const list = readPending();
+  let updated = false;
+  for (const p of list) {
+    if (p.localId === localId) {
+      p.order.status = status;
+      p.order.kitchenStatus = kitchenStatus;
+      p.input.status = status;
+      p.input.kitchenStatus = kitchenStatus;
+      if (paymentMethod) {
+        p.order.paymentMethod = paymentMethod;
+        p.input.paymentMethod = paymentMethod;
+        // Correctly set paymentStatus — credit sale is NOT "paid"
+        p.order.paymentStatus = paymentMethod === "credit" ? "credit" : "paid";
+      }
+      updated = true;
+    }
+  }
+  if (updated) {
+    writePending(list);
+    window.dispatchEvent(new CustomEvent("rush-pos-pending"));
+  }
+}
+
+export function updatePendingOrderItems(localId: string, items: Order["items"], subtotal: number, total: number) {
+  const list = readPending();
+  let updated = false;
+  for (const p of list) {
+    if (p.localId === localId) {
+      p.order.items = items;
+      p.order.subtotal = subtotal;
+      p.order.total = total;
+      p.input.items = items;
+      p.input.subtotal = subtotal;
+      p.input.total = total;
+      updated = true;
+    }
+  }
+  if (updated) {
+    writePending(list);
+    window.dispatchEvent(new Event("rush-pos-pending"));
+  }
+}
+
+export function markPendingFailed(localId: string) {
+  const list = readPending().map((p) =>
+    p.localId === localId ? { ...p, syncAttempts: p.syncAttempts + 1 } : p
+  );
+  writePending(list);
+}
+
+export function markPendingBillPrinted(localId: string) {
+  const list = readPending();
+  let updated = false;
+  for (const p of list) {
+    if (p.localId === localId) {
+      (p.order as any).billPrinted = true;
+      updated = true;
+    }
+  }
+  if (updated) {
+    writePending(list);
+    window.dispatchEvent(new CustomEvent("rush-pos-pending"));
+  }
+}
