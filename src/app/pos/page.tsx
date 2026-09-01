@@ -206,6 +206,12 @@ export default function POSPage() {
   const isDealsTab = activeCategory === DEALS_CATEGORY_ID;
 
   const filtered = useMemo(() => {
+    console.log("[POS] Computing filtered menu:", { 
+      isDealsTab, 
+      menuLength: menu.length, 
+      activeCategory, 
+      search 
+    });
     if (isDealsTab) return [];
     let list = menu;
     if (activeCategory !== "all") {
@@ -215,6 +221,7 @@ export default function POSPage() {
       const q = search.toLowerCase();
       list = list.filter((m) => m.name.toLowerCase().includes(q));
     }
+    console.log("[POS] Filtered result:", list.length, "items");
     return list;
   }, [menu, activeCategory, search, isDealsTab]);
 
