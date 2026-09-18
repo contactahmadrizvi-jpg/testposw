@@ -34,7 +34,7 @@ const manifest = (
 const serwist = new Serwist({
   precacheEntries: manifest,
   skipWaiting: true,
-  clientsClaim: false,
+  clientsClaim: true, // Force immediate takeover
   navigationPreload: false,
 
   runtimeCaching: [
@@ -134,26 +134,77 @@ type SWScope = WorkerGlobalScope & {
   clients: { claim(): Promise<void> };
 };
 
-// Precache offline.html on activation
+// Precache offline.html on activation and cleanup old caches
 (self as unknown as SWScope).addEventListener("activate", (event: Event) => {
   console.log("[SW] Activating...");
   (event as Event & { waitUntil(p: Promise<unknown>): void }).waitUntil(
     (async () => {
       try {
+        // Delete all old caches except our current ones
+        const cacheNames = await caches.keys();
+        const cachesToKeep = [
+          "offline-pages",
+          "next-static",
+          "pages-cache",
+          "menu-images",
+          "google-fonts",
+          "offline-fallback",
+          "pages-rsc-prefetch",
+          "pages-rsc",
+          "pages",
+        ];
+        await Promise.all(
+          cacheNames
+            .filter((name) => !cachesToKeep.includes(name))
+            .map((name) => {
+              console.log("[SW] Deleting old cache:", name);
+              return caches.delete(name);
+            })
+        );
+
         const cache = await caches.open("offline-fallback");
         await cache.add("/offline.html");
         console.log("[SW] Offline fallback precached");
       } catch (e) {
-        console.warn("[SW] Failed to precache offline.html:", e);
+        console.warn("[SW] Failed during activation:", e);
       }
+      
       // Small delay to ensure activation is complete
       await new Promise(resolve => setTimeout(resolve, 100));
+      
       try {
         await (self as unknown as SWScope).clients.claim();
-        console.log("[SW] Activated successfully");
+        console.log("[SW] Activated successfully - claimed all clients");
       } catch (e) {
-        // Ignore claim errors - they're harmless
+        console.warn("[SW] Failed to claim clients:", e);
       }
     })()
   );
+});
+
+// Handle fetch errors gracefully (including missing precached chunks)
+(self as unknown as SWScope).addEventListener("fetch", (event: Event) => {
+  const fetchEvent = event as FetchEvent;
+  
+  // Don't interfere with Serwist's handling - just add error recovery
+  const originalResponse = fetchEvent.respondWith;
+  fetchEvent.respondWith = function(response: Response | Promise<Response>) {
+    return originalResponse.call(this, 
+      Promise.resolve(response).catch(async (error) => {
+        console.warn("[SW] Fetch failed, attempting fallback:", error);
+        
+        // If it's a navigation request and we have the offline page, use it
+        if (fetchEvent.request.mode === "navigate") {
+          const cache = await caches.open("offline-fallback");
+          const offlinePage = await cache.match("/offline.html");
+          if (offlinePage) {
+            return offlinePage;
+          }
+        }
+        
+        // Otherwise, throw the error
+        throw error;
+      })
+    );
+  };
 });
