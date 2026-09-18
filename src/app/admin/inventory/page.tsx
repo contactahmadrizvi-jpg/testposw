@@ -294,15 +294,15 @@ export default function AdminInventoryPage() {
               <Label htmlFor="item-unit" className="text-[11px] font-bold text-stone-500">Unit</Label>
               <select
                 id="item-unit"
-                className="h-9 w-full rounded-lg border bg-white px-2.5 text-xs font-semibold"
+                className="h-9 w-full rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
                 value={newItem.unit}
                 onChange={(e) => setNewItem({ ...newItem, unit: e.target.value as InventoryUnit })}
               >
-                <option value="piece">piece</option>
-                <option value="gram">gram</option>
-                <option value="kg">kg</option>
-                <option value="slice">slice</option>
-                <option value="liter">liter</option>
+                <option value="piece" className="bg-background text-foreground">piece</option>
+                <option value="gram" className="bg-background text-foreground">gram</option>
+                <option value="kg" className="bg-background text-foreground">kg</option>
+                <option value="slice" className="bg-background text-foreground">slice</option>
+                <option value="liter" className="bg-background text-foreground">liter</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -412,14 +412,14 @@ export default function AdminInventoryPage() {
                   <Label htmlFor="entry-item" className="font-bold text-stone-500">Material Item</Label>
                   <select
                     id="entry-item"
-                    className="h-9 w-full rounded-lg border bg-white px-2 text-xs font-semibold"
+                    className="h-9 w-full rounded-lg border border-border bg-background px-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
                     value={selectedItemId}
                     onChange={(e) => setSelectedItemId(e.target.value)}
                     required
                   >
-                    <option value="">-- Choose Item --</option>
+                    <option value="" className="bg-background text-foreground">-- Choose Item --</option>
                     {items.map((i) => (
-                      <option key={i.id} value={i.id}>
+                      <option key={i.id} value={i.id} className="bg-background text-foreground">
                         {i.name} ({i.currentStock} left)
                       </option>
                     ))}

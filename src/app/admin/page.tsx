@@ -52,6 +52,25 @@ export default function AdminDashboardPage() {
   const profile = useAuthStore((s) => s.profile);
 
   useEffect(() => {
+    // Load cached data instantly
+    const cachedOrders = localStorage.getItem('admin_dashboard_orders');
+    const cachedDate = localStorage.getItem('admin_dashboard_date');
+    
+    if (cachedOrders && cachedDate === selectedDate) {
+      try {
+        const parsed = JSON.parse(cachedOrders);
+        setOrders(parsed);
+        if (viewMode === "day") {
+          setHourData(getRevenueByHour(parsed));
+        } else {
+          setHourData(getRevenueByDay(parsed) as any);
+        }
+        setLoading(false); // Show cached data immediately
+      } catch (e) {
+        console.error('Cache parse error:', e);
+      }
+    }
+
     const onPending = () => setLocalTrigger((prev) => prev + 1);
     window.addEventListener("rush-pos-pending", onPending);
     window.addEventListener("storage", onPending);
@@ -97,6 +116,10 @@ export default function AdminDashboardPage() {
       const merged = [...finalLocal, ...list];
 
       setOrders(merged);
+      
+      // Cache orders for instant load next time
+      localStorage.setItem('admin_dashboard_orders', JSON.stringify(merged));
+      localStorage.setItem('admin_dashboard_date', selectedDate);
 
       if (viewMode === "day") {
         setHourData(getRevenueByHour(merged));
@@ -106,8 +129,8 @@ export default function AdminDashboardPage() {
       setLoading(false);
     }, start.toISOString(), end.toISOString());
 
-    // Fetch low stock items count
-    getLowStockItems().then(items => setLowStockCount(items.length));
+    // Fetch low stock items count (async, non-blocking)
+    getLowStockItems().then(items => setLowStockCount(items.length)).catch(() => setLowStockCount(0));
 
     return () => unsub();
   }, [selectedDate, viewMode, localTrigger]);

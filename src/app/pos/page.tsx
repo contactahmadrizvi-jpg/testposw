@@ -402,18 +402,6 @@ export default function POSPage() {
           <OfflineIndicator className="shrink-0" />
         </div>
 
-        {/* Order type selector */}
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {ORDER_TYPES.map((t) => (
-            <button key={t.id} type="button" onClick={() => setOrderType(t.id)}
-              className={cn("rounded-xl py-2.5 text-sm font-bold transition-all",
-                orderType === t.id ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-              )}>
-              <span className="mr-1">{t.icon}</span>{t.label}
-            </button>
-          ))}
-        </div>
-
         {/* Categories + Deals tab */}
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button type="button" onClick={() => { setActiveCategory("all"); setSearch(""); }}
@@ -777,7 +765,22 @@ export default function POSPage() {
 
               {/* Order Details Body */}
               <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
-                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-orange-850">
+                {/* Order Type Selector */}
+                <div className="space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-stone-600">Order Type *</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {ORDER_TYPES.map((t) => (
+                      <button key={t.id} type="button" onClick={() => setOrderType(t.id)}
+                        className={cn("rounded-xl py-3 text-sm font-bold transition-all",
+                          orderType === t.id ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                        )}>
+                        <span className="mr-1">{t.icon}</span>{t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-orange-850 border-t pt-4">
                   <User className="h-3.5 w-3.5" /> Customer Info
                   {orderType === "delivery" && <span className="text-red-500 font-black text-[10px]">* required</span>}
                 </p>

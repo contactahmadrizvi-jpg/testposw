@@ -42,7 +42,21 @@ function AdminOrdersContent() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    
+    // Load cached orders instantly
+    const cacheKey = `admin_orders_${selectedDate}_${filter}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setOrders(parsed);
+        setLoading(false); // Show cached data immediately
+      } catch (e) {
+        console.error('Orders cache parse error:', e);
+      }
+    } else {
+      setLoading(true);
+    }
 
     let remoteList: Order[] = [];
 
@@ -70,6 +84,9 @@ function AdminOrdersContent() {
 
       setOrders(merged);
       setLoading(false);
+      
+      // Cache the orders
+      localStorage.setItem(cacheKey, JSON.stringify(merged));
     };
 
     const start = new Date(`${selectedDate}T00:00:00`);

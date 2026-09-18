@@ -37,7 +37,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     
     // If on dashboard page and user doesn't have dashboard permission, redirect to first allowed page
     if (pathname === "/admin" && !userHasPermission(profile, "dashboard")) {
-      // Find first allowed route
+      // Find first allowed route (in priority order)
       if (userHasPermission(profile, "orders")) {
         router.replace("/admin/orders");
       } else if (userHasPermission(profile, "menu")) {

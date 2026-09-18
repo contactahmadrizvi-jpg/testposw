@@ -53,21 +53,50 @@ export default function AdminMenuPage() {
   const load = async () => {
     setLoading(true);
     try {
-      await ensureDefaultCategories();
-      const [list, cats, inv] = await Promise.all([
+      // Load categories first (they're smaller and needed for UI)
+      const cats = await categoriesRepo.getAll();
+      const sortedCats = cats.sort((a, b) => a.sortOrder - b.sortOrder);
+      setCategories(sortedCats);
+      localStorage.setItem('admin_menu_categories', JSON.stringify(sortedCats));
+      setLoading(false); // Show UI with categories first
+      
+      // Then load items and inventory in parallel (async, non-blocking)
+      Promise.all([
         getMenuItems(),
-        categoriesRepo.getAll(),
         getInventoryItems(),
-      ]);
-      setItems(list.sort((a, b) => a.sortOrder - b.sortOrder));
-      setCategories(cats.sort((a, b) => a.sortOrder - b.sortOrder));
-      setInventory(inv);
-    } finally {
+      ]).then(([list, inv]) => {
+        const sortedItems = list.sort((a, b) => a.sortOrder - b.sortOrder);
+        setItems(sortedItems);
+        setInventory(inv);
+        localStorage.setItem('admin_menu_items', JSON.stringify(sortedItems));
+      });
+      
+      await ensureDefaultCategories();
+    } catch (err) {
+      console.error('Menu load error:', err);
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    // Initial load with cached data
+    const cachedCategories = localStorage.getItem('admin_menu_categories');
+    const cachedItems = localStorage.getItem('admin_menu_items');
+    
+    if (cachedCategories) {
+      try {
+        setCategories(JSON.parse(cachedCategories));
+      } catch (e) {}
+    }
+    
+    if (cachedItems) {
+      try {
+        setItems(JSON.parse(cachedItems));
+        setLoading(false); // Show cached data immediately
+      } catch (e) {}
+    }
+    
+    // Then load fresh data
     load();
   }, []);
 
