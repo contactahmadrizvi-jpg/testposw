@@ -111,14 +111,17 @@ export default function POSPage() {
 
   // ── Load cache immediately on mount (before any Firebase calls) ──
   useLayoutEffect(() => {
+    console.log('[POS] 🚀 Loading cached data...');
+    const startTime = performance.now();
+    
     const cached = loadCachedMenuItems();
     const cachedCats = loadCachedCategories();
     const cachedDeals = loadCachedDeals();
     
     if (cached.length > 0) {
-      console.log(`[POS] ✅ Loaded ${cached.length} cached items`);
       setMenu(cached);
       setMenuLoading(false);
+      console.log(`[POS] ✅ Loaded ${cached.length} items in ${(performance.now() - startTime).toFixed(2)}ms`);
     }
     if (cachedCats.length > 0) setCategories(cachedCats);
     if (cachedDeals.length > 0) setDeals(cachedDeals);
@@ -135,16 +138,19 @@ export default function POSPage() {
   useEffect(() => {
     preloadPrintHeader();
     const stopSync = startPosSyncWorker();
-    const offlineTimer = setTimeout(() => setMenuLoading(false), 6000);
+    const offlineTimer = setTimeout(() => setMenuLoading(false), 3000); // Reduced from 6s to 3s
 
     // ── Firebase subscriptions (only update if we get data) ──
-    getActiveCategories()
-      .then((cats) => { if (cats.length > 0) { setCategories(cats); cacheCategories(cats); } })
-      .catch(() => {});
-
-    getActiveDeals()
-      .then((d) => { if (d.length > 0) { setDeals(d); cacheDeals(d); } })
-      .catch(() => {});
+    // Run these in parallel for faster loading
+    Promise.all([
+      getActiveCategories()
+        .then((cats) => { if (cats.length > 0) { setCategories(cats); cacheCategories(cats); } })
+        .catch(() => {}),
+      
+      getActiveDeals()
+        .then((d) => { if (d.length > 0) { setDeals(d); cacheDeals(d); } })
+        .catch(() => {}),
+    ]);
 
     const unsub = subscribeMenuItems((items) => {
       clearTimeout(offlineTimer);
@@ -153,6 +159,7 @@ export default function POSPage() {
         setMenu(items);
         setMenuLoading(false);
         cacheMenuItems(items);
+        console.log(`[POS] 📡 Synced ${items.length} items from Firebase`);
       }
     });
 

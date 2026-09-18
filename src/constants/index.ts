@@ -3,9 +3,9 @@ import type { UserRole } from "@/types";
 export const RESTAURANT = {
   name: "SOMO",
   location: "15-D Main Commercial Boulevard, Lahore Garden",
-  phone: "+92 304 6123876",
-  phone2: "0315-5116014",
-  email: "orders@somo.pk",
+  phone: "03318967999",
+  phone2: "03318967999",
+  email: "Somofoods01@gmail.com",
   defaultBranchId: "branch-lahore-garden",
 } as const;
 

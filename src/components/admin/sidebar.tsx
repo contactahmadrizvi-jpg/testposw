@@ -17,13 +17,14 @@ import {
   Tag,
   CreditCard,
   Bike,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { RESTAURANT } from "@/constants";
 import { useAuthStore } from "@/stores/auth-store";
 import { userHasPermission } from "@/lib/permissions";
 import { Suspense } from "react";
 import { SomoLogo } from "@/components/somo-logo";
+import { toast } from "sonner";
 
 const nav = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard", perm: "dashboard" },
@@ -45,6 +46,7 @@ function NavLinksContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const profile = useAuthStore((s) => s.profile);
+  const logout = useAuthStore((s) => s.logout);
   const currentTab = searchParams.get("tab");
 
   const visible = nav.filter((item) => {
@@ -63,32 +65,56 @@ function NavLinksContent({ onNavigate }: { onNavigate?: () => void }) {
     return userHasPermission(profile, item.perm);
   });
 
-  return (
-    <nav className="flex-1 space-y-1 p-4">
-      {visible.map((item) => {
-        let active = pathname === item.href;
-        if (item.key === "pending-orders") {
-          active = pathname === "/admin/orders" && currentTab === "pending";
-        } else if (item.key === "all-orders") {
-          active = pathname === "/admin/orders" && currentTab !== "pending";
-        }
+  const handleSignOut = async () => {
+    try {
+      await logout();
+      toast.success("Signed out successfully");
+      window.location.href = "/login";
+    } catch (error) {
+      toast.error("Failed to sign out");
+    }
+  };
 
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent",
-              active && "bg-primary text-primary-foreground hover:bg-primary/90"
-            )}
-          >
-            <item.icon className="h-5 w-5" />
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
+  return (
+    <>
+      <nav className="flex-1 space-y-1 p-4">
+        {visible.map((item) => {
+          let active = pathname === item.href;
+          if (item.key === "pending-orders") {
+            active = pathname === "/admin/orders" && currentTab === "pending";
+          } else if (item.key === "all-orders") {
+            active = pathname === "/admin/orders" && currentTab !== "pending";
+          }
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent",
+                active && "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Sign Out Button */}
+      <div className="shrink-0 border-t border-border p-4">
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
+        >
+          <LogOut className="h-5 w-5" />
+          Sign Out
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -103,12 +129,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 export function AdminSidebar() {
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r bg-card lg:flex">
-      <div className="border-b p-6 flex items-center gap-3">
-        <SomoLogo size="md" showText={false} />
-        <div>
-          <p className="font-bold text-primary text-sm leading-tight">{RESTAURANT.name}</p>
-          <p className="text-[10px] text-muted-foreground">Management</p>
-        </div>
+      <div className="border-b p-6">
+        <SomoLogo size="md" showText />
       </div>
       <NavLinks />
     </aside>
@@ -134,13 +156,7 @@ export function AdminMobileNav({
       />
       <aside className="absolute left-0 top-0 flex h-full w-[min(85vw,280px)] flex-col bg-card shadow-xl">
         <div className="flex items-center justify-between border-b p-4">
-          <div className="flex items-center gap-3">
-            <SomoLogo size="md" showText={false} />
-            <div>
-              <p className="font-bold text-primary text-sm leading-tight">{RESTAURANT.name}</p>
-              <p className="text-[10px] text-muted-foreground">Menu</p>
-            </div>
-          </div>
+          <SomoLogo size="sm" showText />
           <button
             type="button"
             onClick={onClose}

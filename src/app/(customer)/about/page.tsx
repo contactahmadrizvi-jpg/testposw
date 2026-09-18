@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "About Us - Best Pizza & Burger Place in Sheikhupura",
-  description: "Learn more about Rush Pizza and Burger, the leading fast-food destination in Sheikhupura. Serving gourmet burgers, premium loaded pizzas, wraps and fresh sides.",
+  description: "Learn more about SOMO, the leading fast-food destination in Sheikhupura. Serving gourmet burgers, premium loaded pizzas, wraps and fresh sides.",
 };
 
 export default function AboutPage() {
@@ -16,7 +16,7 @@ export default function AboutPage() {
         Located at the heart of the city near {RESTAURANT.location.split(',')[2] || "Sheikhupura"}, we are proud to serve the best pizzas and gourmet burgers made with high-quality, fresh ingredients daily. 
       </p>
       <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-        From cozy family dine-ins and custom takeaway pickups to super fast home delivery across Sheikhupura, Rush Pizza & Burger (Rusk PK) is committed to satisfying your cravings with premium flavors and unmatched quality. Taste the difference today!
+        From cozy family dine-ins and custom takeaway pickups to super fast home delivery across Sheikhupura, SOMO is committed to satisfying your cravings with premium flavors and unmatched quality. Taste the difference today!
       </p>
     </div>
   );
