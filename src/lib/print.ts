@@ -7,13 +7,59 @@ export type PrintHeader = {
   name: string;
   location: string;
   phone: string;
-  email?: string;
+  phone2?: string;
   logoUrl?: string;
 };
 
 let cachedHeader: PrintHeader | null = null;
 let printChain: Promise<void> = Promise.resolve();
 let isPrinting = false;
+let printTimeout: NodeJS.Timeout | null = null;
+let lastPrinterCheck = 0;
+let printerAvailable = true;
+
+// Safety: Reset isPrinting flag after 30 seconds if stuck
+function safetyResetPrintFlag() {
+  if (printTimeout) clearTimeout(printTimeout);
+  printTimeout = setTimeout(() => {
+    if (isPrinting) {
+      console.warn('[Print] Safety reset: isPrinting flag was stuck, resetting...');
+      isPrinting = false;
+    }
+  }, 30000); // 30 seconds timeout
+}
+
+// Check if printer is available (every 5 minutes)
+async function checkPrinterAvailability(): Promise<boolean> {
+  const now = Date.now();
+  if (now - lastPrinterCheck < 300000) { // 5 minutes
+    return printerAvailable;
+  }
+  
+  lastPrinterCheck = now;
+  
+  try {
+    // Try to detect if browser supports printing
+    if (!window.print) {
+      console.error('[Print] Browser does not support printing');
+      printerAvailable = false;
+      return false;
+    }
+    
+    // Check if we're in a print-friendly environment
+    if (typeof document === 'undefined') {
+      printerAvailable = false;
+      return false;
+    }
+    
+    printerAvailable = true;
+    return true;
+  } catch (err) {
+    console.error('[Print] Printer check failed:', err);
+    printerAvailable = false;
+    return false;
+  }
+}
 
 function formatOrderLabel(order: Order): string {
   const n = order.dailyOrderNumber ?? order.orderNumber;
@@ -24,7 +70,15 @@ function formatReceiptDateTime(iso: string): string {
   const d = parseDate(iso);
   if (!d) return "—";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  
+  // Convert to 12-hour format
+  let hours = d.getHours();
+  const minutes = d.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // 0 should be 12
+  
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(hours)}:${pad(minutes)} ${ampm}`;
 }
 
 function orderTypeLabel(type: Order["type"]): string {
@@ -47,8 +101,8 @@ async function resolvePrintHeader(): Promise<PrintHeader> {
       return {
         name: (settings.printerSettings?.restaurantName ?? settings.name).toUpperCase(),
         location: RESTAURANT.location.toUpperCase(),
-        phone: settings.phone,
-        email: settings.email,
+        phone: "03258804325",
+        phone2: "03174957068",
         logoUrl: settings.logoUrl,
       };
     }
@@ -58,8 +112,8 @@ async function resolvePrintHeader(): Promise<PrintHeader> {
   return {
     name: RESTAURANT.name.toUpperCase(),
     location: RESTAURANT.location.toUpperCase(),
-    phone: RESTAURANT.phone,
-    email: RESTAURANT.email,
+    phone: "03258804325",
+    phone2: "03174957068",
   };
 }
 
@@ -80,29 +134,78 @@ export async function printKOT(order: Order): Promise<void> {
 }
 
 function enqueuePrint(html: string): Promise<void> {
-  // Prevent queuing a new print while one is in progress
-  if (isPrinting) return Promise.resolve();
+  // If stuck for too long, force reset
+  if (isPrinting) {
+    console.warn('[Print] Already printing, queuing...');
+  }
+  
   const job = printChain.then(() => printHtmlOnce(html));
-  printChain = job.catch(() => undefined);
+  printChain = job.catch((err) => {
+    console.error('[Print] Print job failed:', err);
+    // Ensure flag is reset on error
+    isPrinting = false;
+    if (printTimeout) clearTimeout(printTimeout);
+  });
   return job;
 }
 
 function printHtmlOnce(html: string): Promise<void> {
-  if (isPrinting) return Promise.resolve();
+  if (isPrinting) {
+    console.log('[Print] Waiting for current print to finish...');
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (!isPrinting) {
+          clearInterval(checkInterval);
+          resolve(printHtmlOnce(html));
+        }
+      }, 500);
+      // Safety: Don't wait forever
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        console.warn('[Print] Timeout waiting for print, forcing...');
+        isPrinting = false;
+        resolve(printHtmlOnce(html));
+      }, 10000);
+    });
+  }
+  
   isPrinting = true;
+  safetyResetPrintFlag(); // Start safety timer
 
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
+    // Check printer availability
+    const available = await checkPrinterAvailability();
+    if (!available) {
+      console.error('[Print] Printer not available, please check browser settings');
+      alert('⚠️ Printer not available!\n\nPlease check:\n1. Browser has permission to print\n2. Default printer is set\n3. Printer is connected\n\nThen refresh the page and try again.');
+      isPrinting = false;
+      if (printTimeout) clearTimeout(printTimeout);
+      resolve();
+      return;
+    }
+
     const iframe = document.createElement("iframe");
     // Give iframe a real 58mm width (≈220px at 96dpi) so the browser renders
     // at the correct thermal-paper width. Zero width causes the browser to
     // fall back to screen width then print a huge blank A4-height page.
     iframe.style.cssText = "position:fixed;right:0;bottom:0;width:58mm;height:1px;border:0;opacity:0;pointer-events:none;";
-    document.body.appendChild(iframe);
+    
+    try {
+      document.body.appendChild(iframe);
+    } catch (err) {
+      console.error('[Print] Failed to create print iframe:', err);
+      isPrinting = false;
+      if (printTimeout) clearTimeout(printTimeout);
+      resolve();
+      return;
+    }
 
     const win = iframe.contentWindow;
     const doc = win?.document;
     if (!doc || !win) {
+      console.error('[Print] Failed to access iframe window/document');
       isPrinting = false;
+      if (printTimeout) clearTimeout(printTimeout);
       iframe.remove();
       resolve();
       return;
@@ -117,7 +220,14 @@ function printHtmlOnce(html: string): Promise<void> {
     let hasPrinted = false;
     const done = () => {
       isPrinting = false;
-      setTimeout(() => iframe.remove(), 500);
+      if (printTimeout) clearTimeout(printTimeout);
+      setTimeout(() => {
+        try {
+          iframe.remove();
+        } catch (err) {
+          console.warn('[Print] Failed to remove iframe:', err);
+        }
+      }, 500);
       resolve();
     };
 
@@ -126,18 +236,36 @@ function printHtmlOnce(html: string): Promise<void> {
       hasPrinted = true;
       // Remove onload handler to prevent any late fires
       iframe.onload = null;
+      
       try {
+        console.log('[Print] Triggering print dialog...');
         win.focus();
         win.print();
+        console.log('[Print] Print dialog opened successfully');
+      } catch (err) {
+        console.error('[Print] Print failed:', err);
+        alert('⚠️ Print Failed!\n\nError: ' + (err as Error).message + '\n\nPlease check your printer connection and browser settings.');
       } finally {
         done();
       }
     };
 
+    // Safety: If print doesn't happen within 5 seconds, force cleanup
+    const printSafetyTimeout = setTimeout(() => {
+      if (!hasPrinted) {
+        console.warn('[Print] Print dialog timeout, forcing cleanup...');
+        runPrint();
+      }
+    }, 5000);
+
     if (doc.readyState === "complete") {
+      clearTimeout(printSafetyTimeout);
       runPrint();
     } else {
-      iframe.onload = runPrint;
+      iframe.onload = () => {
+        clearTimeout(printSafetyTimeout);
+        runPrint();
+      };
     }
   });
 }
@@ -238,8 +366,8 @@ function buildReceiptHTML(order: Order, header: PrintHeader): string {
 <div class="center" style="margin-top: 0px; padding-top: 0px;">${logo}</div>
 <div class="center brand">${escapeHtml(header.name)}</div>
 <div class="center sub">${escapeHtml(header.location)}</div>
-<div class="center sub">PHONE: ${escapeHtml(header.phone)}</div>
-${header.email ? `<div class="center sub">${escapeHtml(header.email)}</div>` : ""}
+<div class="center sub">📞 ${escapeHtml(header.phone)}</div>
+${header.phone2 ? `<div class="center sub">📞 ${escapeHtml(header.phone2)}</div>` : ""}
 <hr class="rule" />
 <div class="center datetime">${dt}</div>
 <table class="w-table"><tr><td>RECEIPT</td><td class="text-right">${label}</td></tr></table>

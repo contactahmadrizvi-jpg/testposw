@@ -31,17 +31,24 @@ export function canAssignManagementRoles(user: AppUser | null | undefined): bool
 
 export function getStaffHomeRoute(user: AppUser | null | undefined): string {
   if (!user) return "/login";
-  const isAdmin = user.role === "admin" || user.role === "super_admin";
   
-  if (isAdmin) {
+  // All staff members go to /admin layout where they see only their allowed pages
+  const isStaff = user.role === "admin" || 
+                  user.role === "super_admin" || 
+                  user.role === "manager" || 
+                  user.role === "cashier" || 
+                  user.role === "kitchen_staff" || 
+                  user.role === "delivery_rider";
+  
+  if (isStaff) {
+    // If they have dashboard permission, go to dashboard
     if (userHasPermission(user, "dashboard")) return "/admin";
-    return "/admin/orders";
+    
+    // Otherwise go to admin, and the layout will redirect them to their first allowed page
+    return "/admin";
   }
   
-  if (userHasPermission(user, "pos")) return "/pos";
-  if (userHasPermission(user, "kitchen")) return "/kitchen";
-  if (userHasPermission(user, "delivery")) return "/rider";
-  
+  // Customers go to website
   return "/home";
 }
 

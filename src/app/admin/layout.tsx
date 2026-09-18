@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Menu } from "lucide-react";
 import { AdminSidebar, AdminMobileNav } from "@/components/admin/sidebar";
@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 import { subscribeOrders } from "@/services/orders.service";
 import { playOrderSound } from "@/lib/print";
 import { toast } from "sonner";
+import { userHasPermission } from "@/lib/permissions";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { profile, loading, firebaseUser, refreshProfile } = useAuthStore();
   const [checked, setChecked] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -28,6 +30,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     setChecked(true);
   }, [firebaseUser, loading, router]);
+
+  // Redirect non-admin users away from dashboard if they don't have permission
+  useEffect(() => {
+    if (!profile || loading) return;
+    
+    // If on dashboard page and user doesn't have dashboard permission, redirect to first allowed page
+    if (pathname === "/admin" && !userHasPermission(profile, "dashboard")) {
+      // Find first allowed route
+      if (userHasPermission(profile, "orders")) {
+        router.replace("/admin/orders");
+      } else if (userHasPermission(profile, "menu")) {
+        router.replace("/admin/menu");
+      } else if (userHasPermission(profile, "inventory")) {
+        router.replace("/admin/inventory");
+      } else if (userHasPermission(profile, "pos") || userHasPermission(profile, "kitchen")) {
+        router.replace("/pos-kitchen");
+      } else if (userHasPermission(profile, "employees")) {
+        router.replace("/admin/employees");
+      } else if (userHasPermission(profile, "reports")) {
+        router.replace("/admin/reports");
+      } else if (userHasPermission(profile, "settings")) {
+        router.replace("/admin/settings");
+      }
+      // If no specific permission, they'll see the "Access Restricted" message on dashboard
+    }
+  }, [profile, pathname, loading, router]);
 
   // Subscribe to new incoming orders for toast + sound alert
   useEffect(() => {
@@ -98,11 +126,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  
-  
-
-
-
+  // Show dashboard content only if user has permission, otherwise show access denied message
+  const canAccessDashboard = userHasPermission(profile, "dashboard") || profile.role === "super_admin" || profile.role === "admin";
+  const isDashboardRoute = pathname === "/admin";
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -123,7 +149,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             POS
           </Link>
         </header>
-        <div className="flex-1 overflow-auto p-4 lg:p-8">{children}</div>
+        <div className="flex-1 overflow-auto p-4 lg:p-8">
+          {isDashboardRoute && !canAccessDashboard ? (
+            <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-center">
+              <h2 className="text-2xl font-bold text-destructive">Dashboard Access Restricted</h2>
+              <p className="max-w-md text-muted-foreground">
+                You don't have permission to view the dashboard. Please contact your administrator to request access.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                You can access other sections from the sidebar based on your assigned permissions.
+              </p>
+            </div>
+          ) : (
+            children
+          )}
+        </div>
       </div>
     </div>
   );

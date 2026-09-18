@@ -1,32 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import POSPage from "../pos/page";
 import KitchenPage from "../kitchen/page";
 import { Monitor, ChefHat, Wifi, WifiOff } from "lucide-react";
 import { SyncStatusBar } from "@/components/sync-status-bar";
 import { SomoLogo } from "@/components/somo-logo";
+import { RESTAURANT } from "@/constants";
 
 export default function PosKitchenUnifiedPage() {
   const [activeTab, setActiveTab] = useState<"pos" | "kitchen">("pos");
   const [isOnline, setIsOnline] = useState(true);
 
   // Monitor online/offline status
-  useState(() => {
+  useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     
-    if (typeof window !== "undefined") {
-      setIsOnline(navigator.onLine);
-      window.addEventListener("online", handleOnline);
-      window.addEventListener("offline", handleOffline);
-      
-      return () => {
-        window.removeEventListener("online", handleOnline);
-        window.removeEventListener("offline", handleOffline);
-      };
-    }
-  });
+    // Set initial state
+    setIsOnline(navigator.onLine);
+    
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">

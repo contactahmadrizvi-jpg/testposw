@@ -22,9 +22,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { userHasPermission } from "@/lib/permissions";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { SomoLogo } from "@/components/somo-logo";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const nav = [
   { href: "/admin", icon: LayoutDashboard, label: "Dashboard", perm: "dashboard" },
@@ -48,6 +49,7 @@ function NavLinksContent({ onNavigate }: { onNavigate?: () => void }) {
   const profile = useAuthStore((s) => s.profile);
   const logout = useAuthStore((s) => s.logout);
   const currentTab = searchParams.get("tab");
+  const [showSignoutDialog, setShowSignoutDialog] = useState(false);
 
   const visible = nav.filter((item) => {
     if (item.perm === "orders") {
@@ -72,6 +74,7 @@ function NavLinksContent({ onNavigate }: { onNavigate?: () => void }) {
       window.location.href = "/login";
     } catch (error) {
       toast.error("Failed to sign out");
+      throw error;
     }
   };
 
@@ -107,13 +110,25 @@ function NavLinksContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="shrink-0 border-t border-border p-4">
         <button
           type="button"
-          onClick={handleSignOut}
+          onClick={() => setShowSignoutDialog(true)}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
         >
           <LogOut className="h-5 w-5" />
           Sign Out
         </button>
       </div>
+
+      {/* Signout Confirmation Dialog */}
+      <ConfirmDialog
+        open={showSignoutDialog}
+        onOpenChange={setShowSignoutDialog}
+        onConfirm={handleSignOut}
+        title="Sign Out?"
+        description="Are you sure you want to sign out? You will need to log in again to access the admin panel."
+        confirmText="Yes, Sign Out"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </>
   );
 }
