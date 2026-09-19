@@ -7,6 +7,7 @@ import RiderDashboard from "@/components/admin/RiderDashboard";
 import { DollarSign, ShoppingBag, AlertTriangle, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DatePicker } from "@/components/ui/date-picker";
 import { getPendingKitchenOrders } from "@/lib/pos-instant";
 import { getRevenueByHour } from "@/services/analytics.service";
 import { subscribeOrders } from "@/services/orders.service";
@@ -210,7 +211,7 @@ export default function AdminDashboardPage() {
           <select
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value as any)}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm font-semibold text-stone-850"
+            className="rounded-md border bg-background px-3 py-2 text-sm font-semibold"
           >
             <option value="day">Single Day</option>
             <option value="this_month">This Month</option>
@@ -218,30 +219,31 @@ export default function AdminDashboardPage() {
             <option value="custom">Custom Range</option>
           </select>
           {viewMode === "day" && (
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="rounded-md border bg-background px-3 py-1.5 text-sm font-semibold text-stone-850"
-            />
+            <div className="w-full sm:w-[240px]">
+              <DatePicker
+                date={selectedDate}
+                onDateChange={setSelectedDate}
+                placeholder="Select date"
+              />
+            </div>
           )}
           {viewMode === "custom" && (
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="rounded-md border bg-background px-3 py-1.5 text-sm font-semibold text-stone-850"
-                placeholder="From"
-              />
-              <span className="text-sm font-medium text-muted-foreground">to</span>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="rounded-md border bg-background px-3 py-1.5 text-sm font-semibold text-stone-850"
-                placeholder="To"
-              />
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <div className="w-full sm:w-[200px]">
+                <DatePicker
+                  date={fromDate}
+                  onDateChange={setFromDate}
+                  placeholder="From date"
+                />
+              </div>
+              <span className="hidden sm:block text-sm font-medium text-muted-foreground">to</span>
+              <div className="w-full sm:w-[200px]">
+                <DatePicker
+                  date={toDate}
+                  onDateChange={setToDate}
+                  placeholder="To date"
+                />
+              </div>
             </div>
           )}
         </div>
