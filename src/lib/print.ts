@@ -355,6 +355,7 @@ function buildReceiptHTML(order: Order, header: PrintHeader, logoBase64: string)
     margin: 0 auto 6px; 
     display: block; 
     object-fit: contain;
+    mix-blend-mode: multiply;
   }
   .brand { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; word-break: break-word; overflow-wrap: break-word; }
   .sub { font-size: 8px; margin-top: 1px; line-height: 1.2; font-weight: 500; word-break: break-word; overflow-wrap: break-word; }
@@ -459,6 +460,7 @@ function buildKOTBody(order: Order, logoBase64: string): string {
     margin: 0 auto 6px;
     display: block;
     object-fit: contain;
+    mix-blend-mode: multiply;
   }
   .badge { display: inline-block; padding: 1px 4px; font-size: 8px; font-weight: 700; color: #fff; background: ${order.source === "website" ? "#1d4ed8" : "#15803d"}; }
   .order-no { font-size: 24px; font-weight: 900; margin: 2px 0; line-height: 1; }
