@@ -2,6 +2,7 @@ import type { Order, OrderItem } from "@/types";
 import { formatCurrency, parseDate } from "@/lib/utils";
 import { RESTAURANT } from "@/constants";
 import { getSettings } from "@/services/settings.service";
+import { getCachedLogoBase64 } from "@/lib/logo-base64";
 
 export type PrintHeader = {
   name: string;
@@ -120,17 +121,20 @@ async function resolvePrintHeader(): Promise<PrintHeader> {
 /** One print dialog: receipt + KOT (page break). No duplicate popups. */
 export async function printPosDocuments(order: Order, header?: PrintHeader): Promise<void> {
   const h = header ?? (await preloadPrintHeader());
-  const html = `${buildReceiptHTML(order, h)}<div style="page-break-before:always"></div>${buildKOTBody(order)}`;
+  const logoBase64 = await getCachedLogoBase64();
+  const html = `${buildReceiptHTML(order, h, logoBase64)}<div style="page-break-before:always"></div>${buildKOTBody(order, logoBase64)}`;
   await enqueuePrint(wrapPrintDocument(html, `Order ${formatOrderLabel(order)}`));
 }
 
 export async function printReceipt(order: Order, header?: PrintHeader): Promise<void> {
   const h = header ?? (await preloadPrintHeader());
-  await enqueuePrint(wrapPrintDocument(buildReceiptHTML(order, h), `Receipt ${formatOrderLabel(order)}`));
+  const logoBase64 = await getCachedLogoBase64();
+  await enqueuePrint(wrapPrintDocument(buildReceiptHTML(order, h, logoBase64), `Receipt ${formatOrderLabel(order)}`));
 }
 
 export async function printKOT(order: Order): Promise<void> {
-  await enqueuePrint(wrapPrintDocument(buildKOTBody(order), `KOT ${formatOrderLabel(order)}`));
+  const logoBase64 = await getCachedLogoBase64();
+  await enqueuePrint(wrapPrintDocument(buildKOTBody(order, logoBase64), `KOT ${formatOrderLabel(order)}`));
 }
 
 function enqueuePrint(html: string): Promise<void> {
@@ -293,7 +297,7 @@ function itemExtras(item: OrderItem): string {
   return `<div class="item-note">${escapeHtml(parts.join(" · "))}</div>`;
 }
 
-function buildReceiptHTML(order: Order, header: PrintHeader): string {
+function buildReceiptHTML(order: Order, header: PrintHeader, logoBase64: string): string {
   const label = formatOrderLabel(order);
   const dt = formatReceiptDateTime(order.createdAt);
   const tableLine =
@@ -317,9 +321,8 @@ function buildReceiptHTML(order: Order, header: PrintHeader): string {
     ? `<div class="addr">${escapeHtml(order.deliveryAddress.street)}, ${escapeHtml(order.deliveryAddress.area)}, ${escapeHtml(order.deliveryAddress.city)}</div>`
     : "";
 
-  // Use absolute URL for logo so it works in print iframe
-  const logoUrl = `${window.location.origin}/logo.png`;
-  const logo = `<img src="${logoUrl}" class="logo-img" alt="SOMO Logo" onerror="this.onerror=null;this.src='${escapeHtml(header.logoUrl || "")}';this.style.maxHeight='28px';" />`;
+  // Use base64 logo directly - no more loading issues!
+  const logo = `<img src="${logoBase64}" class="logo-img" alt="SOMO Logo" />`;
 
   return `
 <style>
@@ -404,12 +407,11 @@ ${itemRows}
 </div>`;
 }
 
-function buildKOTBody(order: Order): string {
+function buildKOTBody(order: Order, logoBase64: string): string {
   const label = formatOrderLabel(order);
   
-  // Use absolute URL for logo so it works in print iframe
-  const logoUrl = `${window.location.origin}/logo.png`;
-  const logo = `<img src="${logoUrl}" class="kot-logo" alt="SOMO Logo" onerror="this.style.display='none';" />`;
+  // Use base64 logo directly - no more loading issues!
+  const logo = `<img src="${logoBase64}" class="kot-logo" alt="SOMO Logo" />`;
   
   const items = order.items
     .map((i) => {
