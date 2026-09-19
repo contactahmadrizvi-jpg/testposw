@@ -1,76 +1,25 @@
 // This file contains the base64 encoded logo for prints
-// Generated from public/logo.png to ensure it works in print iframes
+// Logo is already transparent PNG - no processing needed!
 
 export const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
-// Remove white background from image using canvas
-async function removeWhiteBackground(imageDataUrl: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(imageDataUrl);
-        return;
-      }
-      
-      canvas.width = img.width;
-      canvas.height = img.height;
-      
-      // Draw image
-      ctx.drawImage(img, 0, 0);
-      
-      // Get image data
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      
-      // Remove white background (make it transparent)
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        
-        // If pixel is white or near-white, make it transparent
-        if (r > 240 && g > 240 && b > 240) {
-          data[i + 3] = 0; // Set alpha to 0 (transparent)
-        }
-      }
-      
-      // Put modified data back
-      ctx.putImageData(imageData, 0, 0);
-      
-      // Convert to base64
-      resolve(canvas.toDataURL('image/png'));
-    };
-    
-    img.onerror = () => resolve(imageDataUrl);
-    img.src = imageDataUrl;
-  });
-}
-
-// This is a placeholder - we'll load the real logo at runtime
+// Load the transparent logo from public folder
 export async function getLogoBase64(): Promise<string> {
   try {
-    // Try to fetch the logo from public folder
+    // Fetch the logo from public folder (already transparent!)
     const response = await fetch('/logo.png');
     if (!response.ok) throw new Error('Logo not found');
     
     const blob = await response.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-    
-    // Remove white background
-    return await removeWhiteBackground(dataUrl);
   } catch (error) {
     console.error('Failed to load logo:', error);
-    // Return a fallback SVG logo (already transparent)
+    // Return a fallback SVG logo (transparent chef character)
     return `data:image/svg+xml,${encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
         <defs>
