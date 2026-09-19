@@ -317,8 +317,9 @@ function buildReceiptHTML(order: Order, header: PrintHeader): string {
     ? `<div class="addr">${escapeHtml(order.deliveryAddress.street)}, ${escapeHtml(order.deliveryAddress.area)}, ${escapeHtml(order.deliveryAddress.city)}</div>`
     : "";
 
-  // Always use /logo.png, fallback to header.logoUrl if needed
-  const logo = `<img src="/logo.png" class="logo-img" alt="SOMO Logo" onerror="this.onerror=null;this.src='${escapeHtml(header.logoUrl || "")}';this.style.maxHeight='28px';" />`;
+  // Use absolute URL for logo so it works in print iframe
+  const logoUrl = `${window.location.origin}/logo.png`;
+  const logo = `<img src="${logoUrl}" class="logo-img" alt="SOMO Logo" onerror="this.onerror=null;this.src='${escapeHtml(header.logoUrl || "")}';this.style.maxHeight='28px';" />`;
 
   return `
 <style>
@@ -406,8 +407,9 @@ ${itemRows}
 function buildKOTBody(order: Order): string {
   const label = formatOrderLabel(order);
   
-  // Add logo to KOT as well
-  const logo = `<img src="/logo.png" class="kot-logo" alt="SOMO Logo" onerror="this.style.display='none';" />`;
+  // Use absolute URL for logo so it works in print iframe
+  const logoUrl = `${window.location.origin}/logo.png`;
+  const logo = `<img src="${logoUrl}" class="kot-logo" alt="SOMO Logo" onerror="this.style.display='none';" />`;
   
   const items = order.items
     .map((i) => {
