@@ -181,30 +181,3 @@ type SWScope = WorkerGlobalScope & {
     })()
   );
 });
-
-// Handle fetch errors gracefully (including missing precached chunks)
-(self as unknown as SWScope).addEventListener("fetch", (event: Event) => {
-  const fetchEvent = event as FetchEvent;
-  
-  // Don't interfere with Serwist's handling - just add error recovery
-  const originalResponse = fetchEvent.respondWith;
-  fetchEvent.respondWith = function(response: Response | Promise<Response>) {
-    return originalResponse.call(this, 
-      Promise.resolve(response).catch(async (error) => {
-        console.warn("[SW] Fetch failed, attempting fallback:", error);
-        
-        // If it's a navigation request and we have the offline page, use it
-        if (fetchEvent.request.mode === "navigate") {
-          const cache = await caches.open("offline-fallback");
-          const offlinePage = await cache.match("/offline.html");
-          if (offlinePage) {
-            return offlinePage;
-          }
-        }
-        
-        // Otherwise, throw the error
-        throw error;
-      })
-    );
-  };
-});
