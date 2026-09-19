@@ -40,10 +40,23 @@ export default function AdminDashboardPage() {
   const [hourData, setHourData] = useState<{ hour?: string; day?: string; revenue: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [localTrigger, setLocalTrigger] = useState(0);
-  const [viewMode, setViewMode] = useState<"day" | "this_month" | "prev_month">("day");
+  const [viewMode, setViewMode] = useState<"day" | "this_month" | "prev_month" | "custom">("day");
 
   // Date selection state
   const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  });
+  
+  // Custom date range state
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`; // First day of month
+  });
+  
+  const [toDate, setToDate] = useState(() => {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -53,10 +66,12 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     // Load cached data instantly
-    const cachedOrders = localStorage.getItem('admin_dashboard_orders');
-    const cachedDate = localStorage.getItem('admin_dashboard_date');
+    const cacheKey = viewMode === "custom" 
+      ? `admin_dashboard_orders_${fromDate}_${toDate}`
+      : `admin_dashboard_orders_${selectedDate}`;
+    const cachedOrders = localStorage.getItem(cacheKey);
     
-    if (cachedOrders && cachedDate === selectedDate) {
+    if (cachedOrders) {
       try {
         const parsed = JSON.parse(cachedOrders);
         setOrders(parsed);
@@ -94,6 +109,9 @@ export default function AdminDashboardPage() {
       const now = new Date();
       start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    } else if (viewMode === "custom") {
+      start = new Date(`${fromDate}T00:00:00`);
+      end = new Date(`${toDate}T23:59:59.999`);
     } else {
       start = new Date(`${selectedDate}T00:00:00`);
       end = new Date(`${selectedDate}T23:59:59.999`);
@@ -118,8 +136,10 @@ export default function AdminDashboardPage() {
       setOrders(merged);
       
       // Cache orders for instant load next time
-      localStorage.setItem('admin_dashboard_orders', JSON.stringify(merged));
-      localStorage.setItem('admin_dashboard_date', selectedDate);
+      const cacheKey = viewMode === "custom" 
+        ? `admin_dashboard_orders_${fromDate}_${toDate}`
+        : `admin_dashboard_orders_${selectedDate}`;
+      localStorage.setItem(cacheKey, JSON.stringify(merged));
 
       if (viewMode === "day") {
         setHourData(getRevenueByHour(merged));
@@ -133,7 +153,7 @@ export default function AdminDashboardPage() {
     getLowStockItems().then(items => setLowStockCount(items.length)).catch(() => setLowStockCount(0));
 
     return () => unsub();
-  }, [selectedDate, viewMode, localTrigger]);
+  }, [selectedDate, viewMode, localTrigger, fromDate, toDate]);
 
   if (loading) return <div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32" />)}</div>;
 
@@ -186,7 +206,7 @@ export default function AdminDashboardPage() {
           <h1 className="text-2xl font-extrabold tracking-tight">Dashboard Overview</h1>
           <p className="text-sm text-muted-foreground">Select a range or date to view complete statistics and analytics.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <select
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value as any)}
@@ -195,6 +215,7 @@ export default function AdminDashboardPage() {
             <option value="day">Single Day</option>
             <option value="this_month">This Month</option>
             <option value="prev_month">Previous Month</option>
+            <option value="custom">Custom Range</option>
           </select>
           {viewMode === "day" && (
             <input
@@ -203,6 +224,25 @@ export default function AdminDashboardPage() {
               onChange={(e) => setSelectedDate(e.target.value)}
               className="rounded-md border bg-background px-3 py-1.5 text-sm font-semibold text-stone-850"
             />
+          )}
+          {viewMode === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="rounded-md border bg-background px-3 py-1.5 text-sm font-semibold text-stone-850"
+                placeholder="From"
+              />
+              <span className="text-sm font-medium text-muted-foreground">to</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="rounded-md border bg-background px-3 py-1.5 text-sm font-semibold text-stone-850"
+                placeholder="To"
+              />
+            </div>
           )}
         </div>
       </div>

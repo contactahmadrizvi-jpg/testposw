@@ -317,9 +317,8 @@ function buildReceiptHTML(order: Order, header: PrintHeader): string {
     ? `<div class="addr">${escapeHtml(order.deliveryAddress.street)}, ${escapeHtml(order.deliveryAddress.area)}, ${escapeHtml(order.deliveryAddress.city)}</div>`
     : "";
 
-  const logo = header.logoUrl
-    ? `<img src="${escapeHtml(header.logoUrl)}" class="logo-img" alt="" />`
-    : `<div class="logo-icon">🍴</div>`;
+  // Always use /logo.png, fallback to header.logoUrl if needed
+  const logo = `<img src="/logo.png" class="logo-img" alt="SOMO Logo" onerror="this.onerror=null;this.src='${escapeHtml(header.logoUrl || "")}';this.style.maxHeight='28px';" />`;
 
   return `
 <style>
@@ -344,7 +343,15 @@ function buildReceiptHTML(order: Order, header: PrintHeader): string {
   .center { text-align: center; }
   .text-right { text-align: right; }
   .logo-icon { font-size: 16px; margin-bottom: 2px; }
-  .logo-img { max-height: 28px; margin: 0 auto 4px; display: block; }
+  .logo-img { 
+    max-height: 40px; 
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    margin: 0 auto 6px; 
+    display: block; 
+    object-fit: contain;
+  }
   .brand { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; word-break: break-word; overflow-wrap: break-word; }
   .sub { font-size: 8px; margin-top: 1px; line-height: 1.2; font-weight: 500; word-break: break-word; overflow-wrap: break-word; }
   .rule { border: none; border-top: 1px solid #000; margin: 4px 0; }
@@ -398,6 +405,10 @@ ${itemRows}
 
 function buildKOTBody(order: Order): string {
   const label = formatOrderLabel(order);
+  
+  // Add logo to KOT as well
+  const logo = `<img src="/logo.png" class="kot-logo" alt="SOMO Logo" onerror="this.style.display='none';" />`;
+  
   const items = order.items
     .map((i) => {
       const variantPart = i.customization?.variantName ? ` (${escapeHtml(i.customization.variantName)})` : "";
@@ -436,12 +447,22 @@ function buildKOTBody(order: Order): string {
     -moz-osx-font-smoothing: grayscale;
   }
   h1 { font-size: 11px; margin: 0 0 3px; font-weight: 800; }
+  .kot-logo {
+    max-height: 36px;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    margin: 0 auto 6px;
+    display: block;
+    object-fit: contain;
+  }
   .badge { display: inline-block; padding: 1px 4px; font-size: 8px; font-weight: 700; color: #fff; background: ${order.source === "website" ? "#1d4ed8" : "#15803d"}; }
   .order-no { font-size: 24px; font-weight: 900; margin: 2px 0; line-height: 1; }
   .kot-item { border-bottom: 2px dashed #000; padding: 4px 0; }
   .kot-qty { font-size: 12px; font-weight: 800; word-break: break-word; overflow-wrap: break-word; white-space: normal; }
   .item-note { font-size: 10px; font-weight: 700; color: #b45309; margin-top: 2px; word-break: break-word; overflow-wrap: break-word; }
 </style>
+${logo}
 <h1 style="margin-top: 0px; padding-top: 0px;">KITCHEN ORDER TICKET</h1>
 <span class="badge">${order.source === "website" ? "ONLINE" : "POS"}</span>
 <div class="order-no">${label}</div>
