@@ -132,6 +132,15 @@ export async function printReceipt(order: Order, header?: PrintHeader): Promise<
   await enqueuePrint(wrapPrintDocument(buildReceiptHTML(order, h, logoBase64), `Receipt ${formatOrderLabel(order)}`));
 }
 
+/** One print dialog — 2 receipt copies separated by a page break. No duplicate popups. */
+export async function printReceiptDouble(order: Order, header?: PrintHeader): Promise<void> {
+  const h = header ?? (await preloadPrintHeader());
+  const logoBase64 = await getCachedLogoBase64();
+  const receipt = buildReceiptHTML(order, h, logoBase64);
+  const html = `${receipt}<div style="page-break-before:always;break-before:page;"></div>${receipt}`;
+  await enqueuePrint(wrapPrintDocument(html, `Receipt x2 ${formatOrderLabel(order)}`));
+}
+
 export async function printKOT(order: Order): Promise<void> {
   const logoBase64 = await getCachedLogoBase64();
   await enqueuePrint(wrapPrintDocument(buildKOTBody(order, logoBase64), `KOT ${formatOrderLabel(order)}`));

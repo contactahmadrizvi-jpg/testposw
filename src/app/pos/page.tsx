@@ -27,7 +27,7 @@ import { subscribeMenuItems, getActiveCategories, getActiveDeals } from "@/servi
 import { checkStockForOrderItems, getRecipeAvailabilityMap, getMaxOrderable } from "@/services/inventory.service";
 import type { CreateOrderInput } from "@/services/orders.service";
 import { subscribeKitchenOrders } from "@/services/orders.service";
-import { preloadPrintHeader, printReceipt } from "@/lib/print";
+import { preloadPrintHeader, printReceiptDouble } from "@/lib/print";
 import { buildInstantPosOrder } from "@/lib/pos-instant";
 import { startPosSyncWorker } from "@/services/pos-sync.service";
 import { formatCurrency, cn, normalizePhone, isValidPhone } from "@/lib/utils";
@@ -382,21 +382,8 @@ export default function POSPage() {
       const { order } = buildInstantPosOrder(inputData);
       const num = order.dailyOrderNumber ?? order.orderNumber;
 
-      const confirmed = window.confirm(
-        `Send Order #${num} to Kitchen?\n\nClick OK to print KOT & send to kitchen.\nClick Cancel to discard this order.`
-      );
-      if (!confirmed) {
-        const m = await import("@/lib/pos-instant");
-        m.removePendingByLocalId(order.id);
-        window.dispatchEvent(new CustomEvent("rush-pos-pending"));
-        toast.error("Order cancelled. Nothing was sent to kitchen.");
-        setPaying(false);
-        return;
-      }
-
-      // Print 2 receipt copies (no KOT)
-      await printReceipt(order);
-      await printReceipt(order);
+      // Automatically print 2 copies in 1 print run (single print dialog)
+      await printReceiptDouble(order);
       if (orderType === "delivery") {
         try {
           const { doc: fsDoc, setDoc } = await import("firebase/firestore");
@@ -417,7 +404,7 @@ export default function POSPage() {
       setOrderNotes("");
       setPaying(false);
       setCartStep("cart");
-      toast.success(`Order #${num} sent to Kitchen successfully!`);
+      toast.success(`Order #${num} printed & placed successfully!`);
       // Refresh stock limits (sync worker deducts inventory in the background)
       getRecipeAvailabilityMap().then(setAvailability).catch(() => {});
     } catch (err: any) {
@@ -1027,7 +1014,7 @@ export default function POSPage() {
                 <Button size="lg" disabled={paying || !items.length}
                   className="h-14 w-full rounded-2xl text-base font-bold shadow-lg shadow-primary/25"
                   onClick={placeOrder}>
-                  {paying ? "Processing..." : `Send to Kitchen · F2`}
+                  {paying ? "Processing..." : `Print Order · F2`}
                 </Button>
               </div>
             </>
