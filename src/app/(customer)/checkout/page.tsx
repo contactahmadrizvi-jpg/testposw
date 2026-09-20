@@ -16,15 +16,15 @@ import { createOrder } from "@/services/orders.service";
 import { addTrackedOrder } from "@/lib/order-tracking";
 import { validateCoupon } from "@/services/coupons.service";
 import { getSettings, getDefaultSettings } from "@/services/settings.service";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, normalizePhone } from "@/lib/utils";
 import type { OrderItem } from "@/types";
 
 const schema = z.object({
   name: z.string().min(2),
-  phone: z.string().min(10),
+  phone: z.string().regex(/^0\d{10}$/, "Phone number must be 11 digits starting with 0 (e.g. 03001234567)"),
   street: z.string().min(3),
   area: z.string().min(2),
-  city: z.string().default("Sheikhupura"),
+  city: z.string().default("Lahore"),
   notes: z.string().optional(),
   paymentMethod: z.enum(["cash", "online"]),
 });
@@ -42,11 +42,13 @@ export default function CheckoutPage() {
     resolver: zodResolver(schema),
     defaultValues: {
       name: profile?.displayName ?? "",
-      phone: profile?.phone ?? "",
-      city: "Sheikhupura",
+      phone: normalizePhone(profile?.phone ?? ""),
+      city: "Lahore",
       paymentMethod: "cash",
     },
   });
+
+  const phoneField = register("phone");
 
   const subtotal = getSubtotal();
   const taxRate = 0;
@@ -102,6 +104,7 @@ export default function CheckoutPage() {
         },
         deliveryNotes: data.notes,
         source: "website",
+        skipInventory: true,
       });
 
       addTrackedOrder(order.id);
@@ -122,9 +125,25 @@ export default function CheckoutPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <h1 className="text-2xl font-bold">Checkout</h1>
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
+      <form onSubmit={handleSubmit(onSubmit, (errors) => {
+        const first = errors.name ?? errors.phone ?? errors.street ?? errors.area;
+        if (first?.message) toast.error(String(first.message));
+      })} className="mt-6 space-y-4">
         <div><Label>Name</Label><Input {...register("name")} /></div>
-        <div><Label>Phone</Label><Input {...register("phone")} /></div>
+        <div>
+          <Label>Phone</Label>
+          <Input
+            {...phoneField}
+            type="tel"
+            inputMode="numeric"
+            maxLength={11}
+            placeholder="03XXXXXXXXX"
+            onChange={(e) => {
+              e.target.value = normalizePhone(e.target.value);
+              phoneField.onChange(e);
+            }}
+          />
+        </div>
         <div><Label>Street Address</Label><Input {...register("street")} /></div>
         <div><Label>Area</Label><Input {...register("area")} /></div>
         <div><Label>Delivery Notes</Label><Textarea {...register("notes")} /></div>

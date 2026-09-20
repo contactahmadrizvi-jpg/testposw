@@ -8,8 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FoodCard } from "@/components/customer/food-card";
 import { ItemCustomizeDialog } from "@/components/customer/item-customize-dialog";
 import { getActiveCategories, subscribeMenuItems } from "@/services/menu.service";
+import { subscribeRecipes } from "@/services/inventory.service";
 import { useCartStore } from "@/stores/cart-store";
-import type { MenuCategory, MenuItem } from "@/types";
+import type { MenuCategory, MenuItem, Recipe } from "@/types";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { toast } from "sonner";
 
@@ -20,6 +21,7 @@ function MenuContent() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categorySlug, setCategorySlug] = useState(params.get("category") ?? "all");
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const addItem = useCartStore((s) => s.addItem);
 
   useEffect(() => {
@@ -29,7 +31,11 @@ function MenuContent() {
       setItems(data);
       setLoading(false);
     });
-    return unsub;
+    const unsubRecipes = subscribeRecipes((recs) => setRecipes(recs));
+    return () => {
+      unsub();
+      unsubRecipes();
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -70,6 +76,7 @@ function MenuContent() {
             <FoodCard 
               key={item.id} 
               item={item} 
+              recipes={recipes}
               onAdd={(variantId) => {
                 const custom: any = {};
                 if (variantId && item.variants) {

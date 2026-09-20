@@ -47,8 +47,9 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Public read: customer website shows menu ingredients (recipes)
     match /recipes/{id} {
-      allow read: if isStaff();
+      allow read: if true;
       allow write: if isAdmin();
     }
 

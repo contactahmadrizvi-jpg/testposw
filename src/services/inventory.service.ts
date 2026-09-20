@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/config";
 import { COLLECTIONS } from "@/constants";
-import type { InventoryItem, Recipe, StockMovement, OrderItem, Deal } from "@/types";
+import type { InventoryItem, Recipe, RecipeIngredient, StockMovement, OrderItem, Deal } from "@/types";
 import { BaseRepository, orderBy } from "./base.repository";
 
 const inventoryRepo = new BaseRepository<InventoryItem>(
@@ -41,6 +41,79 @@ export async function getRecipeByMenuItemId(
   if (snap.empty) return null;
   const d = snap.docs[0]!;
   return { id: d.id, ...d.data() } as Recipe;
+}
+
+/**
+ * How many units of each recipe can be produced from current stock.
+ * Key = recipe key (menuItemId, or `${menuItemId}_${variantId}` for size recipes).
+ * Recipes with no usable ingredients are omitted (= unlimited/unknown).
+ */
+function buildAvailabilityMap(
+  recipes: Recipe[],
+  inventory: InventoryItem[]
+): Map<string, number> {
+  const stockById = new Map(inventory.map((i) => [i.id, i.currentStock]));
+  const availability = new Map<string, number>();
+
+  for (const recipe of recipes) {
+    if (!recipe.ingredients?.length) continue;
+    let maxProducible = Infinity;
+    for (const ing of recipe.ingredients) {
+      if (!ing.quantity || ing.quantity <= 0) continue;
+      const stock = stockById.get(ing.inventoryItemId) ?? 0;
+      maxProducible = Math.min(maxProducible, Math.floor(stock / ing.quantity));
+    }
+    if (Number.isFinite(maxProducible)) {
+      availability.set(recipe.menuItemId, Math.max(0, maxProducible));
+    }
+  }
+  return availability;
+}
+
+/** One-shot calculation of producible quantities for every recipe */
+export async function getRecipeAvailabilityMap(): Promise<Map<string, number>> {
+  const [inventory, recipes] = await Promise.all([
+    inventoryRepo.getAll(),
+    recipeRepo.getAll(),
+  ]);
+  return buildAvailabilityMap(recipes, inventory);
+}
+
+/** Live recipe list — used to show menu ingredients */
+export function subscribeRecipes(
+  onChange: (recipes: Recipe[]) => void
+): () => void {
+  return recipeRepo.subscribe([], onChange);
+}
+
+/**
+ * Max orderable quantity for a menu item (optionally per variant).
+ * Returns undefined when no recipe exists (= unlimited/unknown).
+ */
+export function getMaxOrderable(
+  availability: Map<string, number> | null | undefined,
+  menuItemId: string,
+  variantId?: string
+): number | undefined {
+  if (!availability) return undefined;
+  if (variantId) {
+    const byVariant = availability.get(`${menuItemId}_${variantId}`);
+    if (byVariant !== undefined) return byVariant;
+  }
+  return availability.get(menuItemId);
+}
+
+/** Ingredients for a menu item — size-specific recipe first, then base recipe */
+export function getItemIngredients(
+  recipes: Recipe[],
+  menuItemId: string,
+  variantId?: string
+): RecipeIngredient[] {
+  if (variantId) {
+    const sizeRecipe = recipes.find((r) => r.menuItemId === `${menuItemId}_${variantId}`);
+    if (sizeRecipe?.ingredients?.length) return sizeRecipe.ingredients;
+  }
+  return recipes.find((r) => r.menuItemId === menuItemId)?.ingredients ?? [];
 }
 
 interface ResolvedRecipeItem {
@@ -116,11 +189,13 @@ export async function checkStockForOrderItems(
 
     for (const ing of recipe.ingredients) {
       const inv = await inventoryRepo.getById(ing.inventoryItemId);
-      if (!inv) continue;
+      if (!inv || !ing.quantity || ing.quantity <= 0) continue;
       const needed = ing.quantity * orderItem.quantity;
-      if (inv.preventSellWhenLow && inv.currentStock < needed) {
+      // Hard block: never allow ordering more than current inventory can make
+      if (inv.currentStock < needed) {
+        const maxCanMake = Math.max(0, Math.floor(inv.currentStock / ing.quantity));
         shortages.push(
-          `${orderItem.name}: insufficient ${inv.name} (need ${needed} ${inv.unit}, have ${inv.currentStock} ${inv.unit})`
+          `${orderItem.name}: only ${maxCanMake} available in stock (${inv.name}: have ${inv.currentStock} ${inv.unit}, need ${needed} ${inv.unit})`
         );
       }
     }

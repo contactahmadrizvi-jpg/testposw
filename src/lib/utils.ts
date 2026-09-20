@@ -93,6 +93,23 @@ export function slugify(text: string): string {
     .trim();
 }
 
+/**
+ * Keep only digits and cap at 11 characters (Pakistani mobile format: 03XXXXXXXXX).
+ * "+92 300 1234567" is converted to "03001234567".
+ */
+export function normalizePhone(value: string): string {
+  let digits = value.replace(/\D/g, "");
+  if (digits.startsWith("92") && digits.length > 10) {
+    digits = "0" + digits.slice(2);
+  }
+  return digits.slice(0, 11);
+}
+
+/** Valid customer number: exactly 11 digits starting with 0 (e.g. 03001234567) */
+export function isValidPhone(value: string): boolean {
+  return /^0\d{10}$/.test(value);
+}
+
 export function calculateDistanceMeters(
   lat1: number,
   lng1: number,

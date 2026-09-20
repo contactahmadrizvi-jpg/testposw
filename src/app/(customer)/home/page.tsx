@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FoodCard } from "@/components/customer/food-card";
 import { getActiveCategories, getAvailableMenuItems, getActiveDeals } from "@/services/menu.service";
+import { subscribeRecipes } from "@/services/inventory.service";
 import { HOME_MENU_SECTION_IDS } from "@/data/default-menu-categories";
 import { useCartStore } from "@/stores/cart-store";
-import type { MenuCategory, MenuItem, Deal } from "@/types";
+import type { MenuCategory, MenuItem, Deal, Recipe } from "@/types";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { toast } from "sonner";
 
@@ -109,6 +110,7 @@ export default function HomePage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const addItem = useCartStore((s) => s.addItem);
 
   useEffect(() => {
@@ -116,6 +118,12 @@ export default function HomePage() {
     Promise.all([getActiveCategories(), getAvailableMenuItems(), getActiveDeals()])
       .then(([c, menuItems, d]) => { setCategories(c); setItems(menuItems); setDeals(d); })
       .finally(() => setLoading(false));
+  }, []);
+
+  // Live recipes — used to show ingredients on menu cards
+  useEffect(() => {
+    if (!isFirebaseConfigured()) return;
+    return subscribeRecipes((recs) => setRecipes(recs));
   }, []);
 
   const homeSections = HOME_MENU_SECTION_IDS.map((id) => {
@@ -484,6 +492,7 @@ export default function HomePage() {
                 >
                   <FoodCard 
                     item={item}
+                    recipes={recipes}
                     onAdd={(variantId) => {
                       const custom: any = {};
                       if (variantId && item.variants) {

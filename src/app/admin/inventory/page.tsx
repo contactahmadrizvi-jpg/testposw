@@ -294,7 +294,7 @@ export default function AdminInventoryPage() {
               <Label htmlFor="item-unit" className="text-[11px] font-bold text-stone-500">Unit</Label>
               <select
                 id="item-unit"
-                className="h-9 w-full rounded-lg border border-border bg-background px-2.5 text-xs font-semibold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                className="h-9 w-full rounded-lg border border-border bg-background px-2.5 py-0 text-xs font-semibold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
                 value={newItem.unit}
                 onChange={(e) => setNewItem({ ...newItem, unit: e.target.value as InventoryUnit })}
               >
@@ -349,6 +349,7 @@ export default function AdminInventoryPage() {
                 <th className="p-3.5">Remaining Stock</th>
                 <th className="p-3.5">Min Limit</th>
                 <th className="p-3.5">Unit</th>
+                <th className="p-3.5">Price / Unit</th>
                 <th className="p-3.5">Status</th>
                 <th className="p-3.5 text-right">Actions</th>
               </tr>
@@ -361,6 +362,7 @@ export default function AdminInventoryPage() {
                   <td className="p-3.5 font-extrabold text-stone-700">{item.currentStock}</td>
                   <td className="p-3.5 text-stone-400 font-medium">{item.minStock}</td>
                   <td className="p-3.5 text-stone-400 capitalize">{item.unit}</td>
+                  <td className="p-3.5 font-extrabold text-primary">Rs {item.costPerUnit} / {item.unit}</td>
                   <td className="p-3.5">
                     {item.currentStock <= item.minStock ? (
                       <Badge variant="destructive" className="font-extrabold text-[9px] px-1.5 py-0.5 rounded-md">Low</Badge>
@@ -391,7 +393,7 @@ export default function AdminInventoryPage() {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-stone-400">
+                  <td colSpan={8} className="p-8 text-center text-stone-400">
                     No items found. Click bulk import or add manually.
                   </td>
                 </tr>
@@ -412,7 +414,7 @@ export default function AdminInventoryPage() {
                   <Label htmlFor="entry-item" className="font-bold text-stone-500">Material Item</Label>
                   <select
                     id="entry-item"
-                    className="h-9 w-full rounded-lg border border-border bg-background px-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                    className="h-9 w-full rounded-lg border border-border bg-background px-2 py-0 text-xs font-semibold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
                     value={selectedItemId}
                     onChange={(e) => setSelectedItemId(e.target.value)}
                     required

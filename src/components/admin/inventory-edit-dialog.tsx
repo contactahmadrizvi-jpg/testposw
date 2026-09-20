@@ -90,7 +90,7 @@ export function InventoryEditDialog({ item, onSave }: Props) {
           <div>
             <Label>Unit</Label>
             <select
-              className="flex h-11 w-full rounded-xl border px-3 text-sm"
+              className="flex h-11 w-full rounded-xl border px-3 py-0 text-sm"
               value={form.unit}
               onChange={(e) => setForm({ ...form, unit: e.target.value as InventoryUnit })}
             >

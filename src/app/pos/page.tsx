@@ -23,14 +23,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePOSStore } from "@/stores/pos-store";
 import { subscribeMenuItems, getActiveCategories, getActiveDeals } from "@/services/menu.service";
+import { checkStockForOrderItems, getRecipeAvailabilityMap, getMaxOrderable } from "@/services/inventory.service";
 import type { CreateOrderInput } from "@/services/orders.service";
 import { subscribeKitchenOrders } from "@/services/orders.service";
 import { preloadPrintHeader, printKOT } from "@/lib/print";
 import { buildInstantPosOrder } from "@/lib/pos-instant";
 import { startPosSyncWorker } from "@/services/pos-sync.service";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, cn, normalizePhone, isValidPhone } from "@/lib/utils";
 import { getFirestoreDb } from "@/lib/firebase/config";
-import type { Deal, MenuItem, OrderItem, OrderType, MenuCategory } from "@/types";
+import type { Deal, MenuItem, OrderItem, OrderType, MenuCategory, CartItemCustomization } from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
 import { userHasPermission } from "@/lib/permissions";
 import { RESTAURANT } from "@/constants";
@@ -80,10 +81,13 @@ export default function POSPage() {
   const [showDialpad, setShowDialpad] = useState(false);
   const [cartStep, setCartStep] = useState<"cart" | "details">("cart");
 
-  // Delivery state
+  // Delivery state — delivery is always Lahore (LHR)
   const [street, setStreet] = useState("");
-  const [city, setCity] = useState("Sheikhupura");
+  const [city, setCity] = useState("Lahore");
   const [deliveryCharges, setDeliveryCharges] = useState(150);
+
+  // Inventory stock limits (max orderable per item) — POS/kitchen orders only
+  const [availability, setAvailability] = useState<Map<string, number> | null>(null);
 
   // Autocomplete
   const [savedCustomers, setSavedCustomers] = useState<any[]>([]);
@@ -177,6 +181,18 @@ export default function POSPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Load inventory availability (max orderable per item) for stock blocking ──
+  useEffect(() => {
+    const load = () => {
+      getRecipeAvailabilityMap()
+        .then((map) => setAvailability(map))
+        .catch(() => {}); // offline: keep last known limits
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const subtotal = getSubtotal();
   const originalSubtotal = useMemo(() => items.reduce((s, i) => s + (i.unitPrice * i.quantity), 0), [items]);
   const totalItemDiscounts = useMemo(() => items.reduce((s, i) => s + (i.discountAmount || 0), 0), [items]);
@@ -218,10 +234,36 @@ export default function POSPage() {
     return deals.filter((d) => d.title.toLowerCase().includes(q) || d.description.toLowerCase().includes(q));
   }, [deals, isDealsTab, search]);
 
+  // Total qty of a menu item already in the POS cart (all customizations)
+  const getPosInCartQty = useCallback(
+    (menuItemId: string) =>
+      items.filter((l) => !l.isDeal && l.menuItem.id === menuItemId).reduce((s, l) => s + l.quantity, 0),
+    [items]
+  );
+
+  // Add to POS cart — blocked when inventory stock cannot cover it
+  const tryAddPosItem = useCallback(
+    (item: MenuItem, custom: CartItemCustomization = {}) => {
+      const max = getMaxOrderable(availability, item.id, custom.variantId);
+      if (max !== undefined) {
+        if (max <= 0) {
+          toast.error(`${item.name} is out of stock`);
+          return;
+        }
+        if (getPosInCartQty(item.id) >= max) {
+          toast.error(`Only ${max} × ${item.name} can be ordered (stock limit)`);
+          return;
+        }
+      }
+      addItem(item, 1, custom);
+    },
+    [availability, getPosInCartQty, addItem]
+  );
+
   const selectSuggestion = (s: any) => {
-    setCustomer(s.name, s.phone);
+    setCustomer(s.name, normalizePhone(s.phone || ""));
     setStreet(s.street || "");
-    setCity(s.city || "Sheikhupura");
+    setCity("Lahore");
     setDeliveryCharges(s.deliveryCharges || 150);
     setPhoneSuggestions([]);
   };
@@ -257,6 +299,11 @@ export default function POSPage() {
     const nameToUse = customerName.trim() || "Walk-in Customer";
     const phoneToUse = customerPhone.trim() || "";
 
+    if (phoneToUse && !isValidPhone(phoneToUse)) {
+      toast.error("Phone number must be 11 digits starting with 0 (e.g. 03001234567)");
+      return;
+    }
+
     if (orderType === "delivery" && phoneToUse) {
       const newSaved = { phone: phoneToUse, name: nameToUse, street, city, deliveryCharges };
       const filteredList = savedCustomers.filter((c: any) => c.phone !== phoneToUse);
@@ -279,6 +326,22 @@ export default function POSPage() {
 
     const deliveryCharge = orderType === "delivery" ? deliveryCharges : 0;
     const finalTotal = total + deliveryCharge;
+
+    // ── Inventory stock check: never send an order that exceeds available stock ──
+    if (navigator.onLine) {
+      try {
+        const stock = await checkStockForOrderItems(orderItems);
+        if (!stock.ok) {
+          toast.error("Not enough stock for this order", {
+            description: stock.shortages.slice(0, 3).join("\n"),
+            duration: 8000,
+          });
+          return;
+        }
+      } catch (e) {
+        console.error("[POS] Stock check failed, allowing order:", e);
+      }
+    }
 
     setPaying(true);
 
@@ -335,11 +398,13 @@ export default function POSPage() {
       clearOrder();
       setShowDialpad(false);
       setStreet("");
-      setCity("Sheikhupura");
+      setCity("Lahore");
       setDeliveryCharges(150);
       setPaying(false);
       setCartStep("cart");
       toast.success(`Order #${num} sent to Kitchen successfully!`);
+      // Refresh stock limits (sync worker deducts inventory in the background)
+      getRecipeAvailabilityMap().then(setAvailability).catch(() => {});
     } catch (err: any) {
       toast.error(err?.message || "Failed to submit order");
       setPaying(false);
@@ -543,7 +608,7 @@ export default function POSPage() {
                     className="relative flex-1 w-full overflow-hidden bg-stone-100 active:scale-[0.98] transition"
                     onClick={() => {
                       const custom = item.variants?.length ? { variantId: item.variants[0].id, variantName: item.variants[0].name } : {};
-                      addItem(item, 1, custom);
+                      tryAddPosItem(item, custom);
                     }}
                   >
                     <MenuItemImage src={item.imageUrl} alt={item.name} fill />
@@ -557,7 +622,7 @@ export default function POSPage() {
                     <div className="flex shrink-0 items-center gap-1 bg-stone-50 p-1.5" style={{ height: "52px" }}>
                       {item.variants.map((v) => (
                         <button key={v.id} type="button"
-                          onClick={() => addItem(item, 1, { variantId: v.id, variantName: v.name })}
+                          onClick={() => tryAddPosItem(item, { variantId: v.id, variantName: v.name })}
                           className="flex-1 rounded-lg bg-white py-1.5 text-xs font-black text-stone-700 ring-1 ring-stone-200 hover:bg-primary hover:text-white hover:ring-primary active:scale-95 transition"
                         >{v.name}</button>
                       ))}
@@ -566,7 +631,7 @@ export default function POSPage() {
                     <button type="button"
                       className="flex shrink-0 items-center justify-between bg-white px-3 py-2 hover:bg-orange-50 active:bg-stone-50 transition"
                       style={{ height: "52px" }}
-                      onClick={() => addItem(item)}
+                      onClick={() => tryAddPosItem(item)}
                     >
                       <span className="text-sm font-black text-primary">{formatCurrency(item.price)}</span>
                       <span className="rounded-lg bg-orange-50 border border-orange-100 px-2 py-0.5 text-xs font-black text-orange-700">+ Add</span>
@@ -671,7 +736,16 @@ export default function POSPage() {
                             <span className="w-7 text-center text-sm font-black text-stone-900">{line.quantity}</span>
                             <button type="button"
                               className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white shadow-sm active:scale-90 transition"
-                              onClick={() => updateQty(line.id, line.quantity + 1)}>
+                              onClick={() => {
+                                if (!line.isDeal) {
+                                  const max = getMaxOrderable(availability, line.menuItem.id, line.customization?.variantId);
+                                  if (max !== undefined && getPosInCartQty(line.menuItem.id) >= max) {
+                                    toast.error(`Only ${max} × ${line.menuItem.name} can be ordered (stock limit)`);
+                                    return;
+                                  }
+                                }
+                                updateQty(line.id, line.quantity + 1);
+                              }}>
                               <Plus className="h-4 w-4" />
                             </button>
                           </div>
@@ -798,10 +872,13 @@ export default function POSPage() {
                   <div className="relative">
                     <Phone className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                     <Input className="h-12 rounded-xl border-stone-200 bg-white pl-10 text-sm"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={11}
                       placeholder={orderType === "delivery" ? "Phone *" : "Phone (optional)"}
                       value={customerPhone}
                       onChange={(e) => {
-                        const val = e.target.value;
+                        const val = normalizePhone(e.target.value);
                         setCustomer(customerName, val);
                         if (val.length >= 2) {
                           setPhoneSuggestions(savedCustomers.filter((c) => c.phone.toLowerCase().includes(val.toLowerCase())));
@@ -835,8 +912,8 @@ export default function POSPage() {
                     <Input className="h-12 rounded-xl border-stone-200 bg-white text-sm" placeholder="Street / House No. / Address *"
                       value={street} onChange={(e) => setStreet(e.target.value)} />
                     <div className="grid grid-cols-2 gap-3">
-                      <Input className="h-12 rounded-xl border-stone-200 bg-white text-sm" placeholder="City *"
-                        value={city} onChange={(e) => setCity(e.target.value)} />
+                      <Input className="h-12 rounded-xl border-stone-200 bg-stone-100 text-sm font-bold" placeholder="City *"
+                        value={city} readOnly />
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-extrabold text-stone-400">Rs.</span>
                         <Input type="number" min="0" className="h-12 rounded-xl border-stone-200 bg-white text-sm pl-9 font-black text-primary"

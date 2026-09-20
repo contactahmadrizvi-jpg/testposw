@@ -34,11 +34,11 @@ export function getDefaultSettings(): RestaurantSettings {
   return {
     id: SETTINGS_DOC_ID,
     name: RESTAURANT.name,
-    tagline: "Premium Pizza & Burgers in Sheikhupura",
+    tagline: "Premium Pizza & Burgers in Lahore",
     phone: RESTAURANT.phone,
     email: RESTAURANT.email,
     address: RESTAURANT.location,
-    city: "",
+    city: "Lahore",
     currency: "PKR",
     taxRate: 0,
     deliveryCharge: 150,
@@ -52,10 +52,10 @@ export function getDefaultSettings(): RestaurantSettings {
     branches: [
       {
         id: RESTAURANT.defaultBranchId,
-        name: "Sheikhupura Main",
-        address: "Sheikhupura, Pakistan",
-        lat: 31.7131,
-        lng: 73.9783,
+        name: "Lahore Main",
+        address: "Lahore, Pakistan",
+        lat: 31.5204,
+        lng: 74.3587,
         isDefault: true,
       },
     ],

@@ -252,7 +252,7 @@ export function MenuEditDialog({ item, categories, inventory, onSaved }: Props) 
           <div>
             <Label>Category</Label>
             <select
-              className="mt-1 flex h-11 w-full rounded-xl border px-3 text-sm"
+              className="mt-1 flex h-11 w-full rounded-xl border px-3 py-0 text-sm"
               value={form.categoryId}
               onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
             >

@@ -392,7 +392,7 @@ export default function AdminMenuPage() {
                   <div>
                     <Label>Category</Label>
                     <select
-                      className="mt-1 flex h-11 w-full rounded-xl border px-3 text-sm"
+                      className="mt-1 flex h-11 w-full rounded-xl border px-3 py-0 text-sm"
                       value={form.categoryId}
                       onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
                     >
@@ -622,7 +622,7 @@ export default function AdminMenuPage() {
                   <div>
                     <Label>Type</Label>
                     <select
-                      className="mt-1 flex h-11 w-full rounded-xl border px-3 text-sm"
+                      className="mt-1 flex h-11 w-full rounded-xl border px-3 py-0 text-sm"
                       value={editingCategory ? editCatForm.type : catForm.type}
                       onChange={(e) => editingCategory
                         ? setEditCatForm({ ...editCatForm, type: e.target.value })
@@ -650,7 +650,7 @@ export default function AdminMenuPage() {
                       <div>
                         <Label>Status</Label>
                         <select
-                          className="mt-1 flex h-11 w-full rounded-xl border px-3 text-sm"
+                          className="mt-1 flex h-11 w-full rounded-xl border px-3 py-0 text-sm"
                           value={editCatForm.isActive ? "active" : "inactive"}
                           onChange={(e) => setEditCatForm({ ...editCatForm, isActive: e.target.value === "active" })}
                         >

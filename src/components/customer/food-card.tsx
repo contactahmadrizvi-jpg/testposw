@@ -1,20 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { MenuItemImage } from "@/components/menu-item-image";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, cn } from "@/lib/utils";
-import type { MenuItem } from "@/types";
+import { getItemIngredients } from "@/services/inventory.service";
+import type { MenuItem, Recipe } from "@/types";
 
 interface FoodCardProps {
   item: MenuItem;
   onAdd: (variantId?: string) => void;
+  /** Recipes (with ingredients) — shown to the customer */
+  recipes?: Recipe[];
 }
 
-export function FoodCard({ item, onAdd }: FoodCardProps) {
+export function FoodCard({ item, onAdd, recipes }: FoodCardProps) {
   const [selectedVariant, setSelectedVariant] = useState<string | undefined>(
     item.variants && item.variants.length > 0 ? item.variants[0].id : undefined
   );
@@ -22,6 +25,12 @@ export function FoodCard({ item, onAdd }: FoodCardProps) {
   const price = selectedVariant
     ? item.price + (item.variants?.find((v) => v.id === selectedVariant)?.priceModifier || 0)
     : item.price;
+
+  // Ingredients for the currently selected variant (size recipes first)
+  const ingredients = useMemo(
+    () => getItemIngredients(recipes ?? [], item.id, selectedVariant),
+    [recipes, item.id, selectedVariant]
+  );
 
   return (
     <motion.div
@@ -37,7 +46,18 @@ export function FoodCard({ item, onAdd }: FoodCardProps) {
       <div className="flex flex-1 flex-col p-4">
         <h3 className="font-bold">{item.name}</h3>
         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.description}</p>
-        
+
+        {ingredients.length > 0 && (
+          <div className="mt-2 rounded-lg bg-muted/50 px-2.5 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ingredients</p>
+            <p className="mt-0.5 text-xs leading-snug text-foreground/80">
+              {ingredients
+                .map((ing) => `${ing.inventoryItemName} ${ing.quantity} ${ing.unit}`)
+                .join(" · ")}
+            </p>
+          </div>
+        )}
+
         <div className="flex-1" />
 
         {item.variants && item.variants.length > 0 && (

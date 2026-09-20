@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { registerUser } from "@/services/auth.service";
+import { normalizePhone, isValidPhone } from "@/lib/utils";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -17,6 +18,10 @@ export default function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!isValidPhone(form.phone)) {
+      toast.error("Phone number must be 11 digits starting with 0 (e.g. 03001234567)");
+      return;
+    }
     setLoading(true);
     try {
       await registerUser(form.email, form.password, form.name, form.phone, "customer");
@@ -62,8 +67,12 @@ export default function RegisterPage() {
             <div>
               <Label className="font-semibold">Phone Number</Label>
               <Input 
+                type="tel"
+                inputMode="numeric"
+                maxLength={11}
+                placeholder="03XXXXXXXXX"
                 value={form.phone} 
-                onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+                onChange={(e) => setForm({ ...form, phone: normalizePhone(e.target.value) })} 
                 required 
                 className="rounded-xl border-2"
               />

@@ -35,14 +35,17 @@ export interface CreateOrderInput {
   tableNumber?: number;
   source: Order["source"];
   createdBy?: string;
+  /** True = skip stock availability check (POS already checks at add time / offline) */
   skipStockCheck?: boolean;
+  /** True = order does not touch the inventory system at all (public website orders) */
+  skipInventory?: boolean;
   predefinedDailyOrderNumber?: number;
   predefinedOrderNumber?: string;
   predefinedOrderId?: string;
 }
 
 export async function createOrder(input: CreateOrderInput): Promise<Order> {
-  if (!input.skipStockCheck) {
+  if (!input.skipInventory && !input.skipStockCheck) {
     const stock = await checkStockForOrderItems(input.items);
     if (!stock.ok) {
       throw new Error(stock.shortages.join("; "));
@@ -116,7 +119,9 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     } as Omit<Payment, "id">);
   }
 
-  await deductInventoryForOrder(orderId, input.items, input.createdBy ?? "system");
+  if (!input.skipInventory) {
+    await deductInventoryForOrder(orderId, input.items, input.createdBy ?? "system");
+  }
 
   return order;
 }

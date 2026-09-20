@@ -4,16 +4,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/utils";
-import type { MenuItem, CartItemCustomization } from "@/types";
+import { getItemIngredients } from "@/services/inventory.service";
+import type { MenuItem, CartItemCustomization, Recipe } from "@/types";
 
 interface Props {
   item: MenuItem;
   open: boolean;
   onClose: () => void;
   onAdd: (qty: number, custom: CartItemCustomization) => void;
+  /** Recipes (with ingredients) — shown to the customer */
+  recipes?: Recipe[];
 }
 
-export function ItemCustomizeDialog({ item, open, onClose, onAdd }: Props) {
+export function ItemCustomizeDialog({ item, open, onClose, onAdd, recipes }: Props) {
   const [qty, setQty] = useState(1);
   const [variantId, setVariantId] = useState<string | undefined>(
     item.variants && item.variants.length > 0 ? item.variants[0].id : undefined
@@ -24,6 +27,8 @@ export function ItemCustomizeDialog({ item, open, onClose, onAdd }: Props) {
   const [notes, setNotes] = useState("");
 
   if (!open) return null;
+
+  const ingredients = getItemIngredients(recipes ?? [], item.id, variantId);
 
   let price = item.price;
   if (variantId && item.variants) {
@@ -43,6 +48,17 @@ export function ItemCustomizeDialog({ item, open, onClose, onAdd }: Props) {
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-xl font-bold">{item.name}</h2>
         <p className="text-sm text-muted-foreground">{item.description}</p>
+
+        {ingredients.length > 0 && (
+          <div className="mt-3 rounded-lg bg-muted/50 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ingredients</p>
+            <p className="mt-0.5 text-xs leading-snug text-foreground/80">
+              {ingredients
+                .map((ing) => `${ing.inventoryItemName} ${ing.quantity} ${ing.unit}`)
+                .join(" · ")}
+            </p>
+          </div>
+        )}
 
         {item.variants && item.variants.length > 0 && (
           <div className="mt-4">
