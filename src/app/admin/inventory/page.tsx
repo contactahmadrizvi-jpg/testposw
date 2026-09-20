@@ -29,13 +29,18 @@ export default function AdminInventoryPage() {
     unit: "piece" as InventoryUnit,
     minStock: "10",
     stock: "0",
+    costPerUnit: "",
+    totalPrice: "",
   });
+  const [isAddingItem, setIsAddingItem] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Daily Entry Form State
   const [selectedItemId, setSelectedItemId] = useState("");
   const [entryQty, setEntryQty] = useState("");
+  const [entryPricePerUnit, setEntryPricePerUnit] = useState("");
+  const [entryTotalPrice, setEntryTotalPrice] = useState("");
   const [entryDateTime, setEntryDateTime] = useState(() => {
     const d = new Date();
     const tzoffset = d.getTimezoneOffset() * 60000;
@@ -110,26 +115,86 @@ export default function AdminInventoryPage() {
     );
   }
 
+  const handleNewItemQtyChange = (val: string) => {
+    const qty = Number(val) || 0;
+    const unitCost = Number(newItem.costPerUnit) || 0;
+    const calculatedTotal = unitCost > 0 && qty > 0 ? String(parseFloat((qty * unitCost).toFixed(2))) : "";
+    setNewItem((prev) => ({
+      ...prev,
+      stock: val,
+      totalPrice: calculatedTotal || prev.totalPrice,
+    }));
+  };
+
+  const handleNewItemPricePerUnitChange = (val: string) => {
+    const unitCost = Number(val) || 0;
+    const qty = Number(newItem.stock) || 0;
+    const calculatedTotal = val && qty > 0 ? String(parseFloat((qty * unitCost).toFixed(2))) : "";
+    setNewItem((prev) => ({
+      ...prev,
+      costPerUnit: val,
+      totalPrice: calculatedTotal,
+    }));
+  };
+
+  const handleNewItemTotalPriceChange = (val: string) => {
+    const totPrice = Number(val) || 0;
+    const qty = Number(newItem.stock) || 0;
+    const calculatedUnitCost = val && qty > 0 ? String(parseFloat((totPrice / qty).toFixed(2))) : "";
+    setNewItem((prev) => ({
+      ...prev,
+      totalPrice: val,
+      costPerUnit: calculatedUnitCost,
+    }));
+  };
+
   async function addInventory() {
-    if (!newItem.name) return;
-    const now = new Date().toISOString();
-    await inventoryRepo.create({
-      name: newItem.name,
-      sku: newItem.name.replace(/\s+/g, "-").toUpperCase(),
-      unit: newItem.unit,
-      currentStock: Number(newItem.stock) || 0,
-      totalStock: Number(newItem.stock) || 0,
-      minStock: Number(newItem.minStock),
-      costPerUnit: 0,
-      isActive: true,
-      preventSellWhenLow: false,
-      createdAt: now,
-      updatedAt: now,
-    } as Omit<InventoryItem, "id">);
-    toast.success("Item Added successfully!");
-    setNewItem({ name: "", unit: "piece", minStock: "10", stock: "0" });
-    setShowAddForm(false);
-    load();
+    if (isAddingItem) return; // Prevent multiple rapid clicks
+    if (!newItem.name.trim()) {
+      toast.error("Please enter material name");
+      return;
+    }
+    const initialQty = Number(newItem.stock) || 0;
+    if (initialQty < 0) {
+      toast.error("Quantity cannot be negative");
+      return;
+    }
+
+    setIsAddingItem(true); // Disable immediately
+    try {
+      const now = new Date().toISOString();
+      const unitCost = Number(newItem.costPerUnit) || 0;
+
+      await inventoryRepo.create({
+        name: newItem.name.trim(),
+        sku: newItem.name.trim().replace(/\s+/g, "-").toUpperCase(),
+        unit: newItem.unit,
+        currentStock: initialQty,
+        totalStock: initialQty,
+        minStock: Number(newItem.minStock) || 0,
+        costPerUnit: unitCost,
+        isActive: true,
+        preventSellWhenLow: false,
+        createdAt: now,
+        updatedAt: now,
+      } as Omit<InventoryItem, "id">);
+
+      toast.success("Material added successfully!");
+      setNewItem({
+        name: "",
+        unit: "piece",
+        minStock: "10",
+        stock: "0",
+        costPerUnit: "",
+        totalPrice: "",
+      });
+      setShowAddForm(false);
+      load();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to add material");
+    } finally {
+      setIsAddingItem(false);
+    }
   }
 
   async function saveEdit(id: string, data: Partial<InventoryItem>) {
@@ -149,8 +214,51 @@ export default function AdminInventoryPage() {
     }
   }
 
+  const handleSelectEntryItem = (itemId: string) => {
+    setSelectedItemId(itemId);
+    const it = items.find((i) => i.id === itemId);
+    if (it && it.costPerUnit > 0) {
+      setEntryPricePerUnit(String(it.costPerUnit));
+      const qty = Number(entryQty) || 0;
+      if (qty > 0) {
+        setEntryTotalPrice(String(parseFloat((qty * it.costPerUnit).toFixed(2))));
+      }
+    } else {
+      setEntryPricePerUnit("");
+      setEntryTotalPrice("");
+    }
+  };
+
+  const handleEntryQtyChange = (qtyVal: string) => {
+    setEntryQty(qtyVal);
+    const qty = Number(qtyVal) || 0;
+    const unitPrice = Number(entryPricePerUnit) || 0;
+    if (unitPrice > 0 && qty > 0) {
+      setEntryTotalPrice(String(parseFloat((qty * unitPrice).toFixed(2))));
+    }
+  };
+
+  const handleEntryPricePerUnitChange = (unitVal: string) => {
+    setEntryPricePerUnit(unitVal);
+    const unitPrice = Number(unitVal) || 0;
+    const qty = Number(entryQty) || 0;
+    if (unitVal && qty > 0) {
+      setEntryTotalPrice(String(parseFloat((qty * unitPrice).toFixed(2))));
+    }
+  };
+
+  const handleEntryTotalPriceChange = (totVal: string) => {
+    setEntryTotalPrice(totVal);
+    const tot = Number(totVal) || 0;
+    const qty = Number(entryQty) || 0;
+    if (totVal && qty > 0) {
+      setEntryPricePerUnit(String(parseFloat((tot / qty).toFixed(2))));
+    }
+  };
+
   async function handleAddEntry(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingEntry) return; // Prevent double submit
     if (!selectedItemId || !entryQty) {
       toast.error("Select item and enter quantity");
       return;
@@ -161,7 +269,7 @@ export default function AdminInventoryPage() {
       return;
     }
 
-    setSubmittingEntry(true);
+    setSubmittingEntry(true); // Disable immediately
     try {
       const selectedItem = items.find((i) => i.id === selectedItemId);
       if (!selectedItem) return;
@@ -169,12 +277,22 @@ export default function AdminInventoryPage() {
       const createdDate = new Date(entryDateTime).toISOString();
       const newStock = selectedItem.currentStock + qtyNum;
       const newTotalStock = (selectedItem.totalStock || selectedItem.currentStock) + qtyNum;
+      const enteredUnitCost = Number(entryPricePerUnit);
 
-      await inventoryRepo.update(selectedItemId, {
+      const updateData: Partial<InventoryItem> = {
         currentStock: newStock,
         totalStock: newTotalStock,
         updatedAt: new Date().toISOString(),
-      });
+      };
+      if (!isNaN(enteredUnitCost) && enteredUnitCost > 0) {
+        updateData.costPerUnit = enteredUnitCost;
+      }
+
+      await inventoryRepo.update(selectedItemId, updateData);
+
+      const priceNote = enteredUnitCost > 0
+        ? ` (Rs ${enteredUnitCost}/${selectedItem.unit}${entryTotalPrice ? `, Total: Rs ${entryTotalPrice}` : ""})`
+        : "";
 
       await movementRepo.create({
         inventoryItemId: selectedItemId,
@@ -182,13 +300,15 @@ export default function AdminInventoryPage() {
         type: "purchase",
         quantity: qtyNum,
         unit: selectedItem.unit,
-        notes: entryNotes.trim() || "Daily Entry",
+        notes: (entryNotes.trim() || "Daily Entry") + priceNote,
         createdAt: createdDate,
         createdBy: profile?.displayName || profile?.email || "admin",
       } as Omit<StockMovement, "id">);
 
-      toast.success(`Logged ${qtyNum} of ${selectedItem.name}`);
+      toast.success(`Logged ${qtyNum} ${selectedItem.unit} of ${selectedItem.name}`);
       setEntryQty("");
+      setEntryPricePerUnit("");
+      setEntryTotalPrice("");
       setEntryNotes("");
       load();
     } catch (error) {
@@ -279,12 +399,12 @@ export default function AdminInventoryPage() {
       {/* Collapsible Material Add Form */}
       {activeTab === "list" && showAddForm && (
         <Card className="border border-stone-100 shadow-sm rounded-2xl bg-stone-50/50">
-          <CardContent className="p-4 grid gap-3 sm:grid-cols-4 items-end text-xs">
-            <div className="space-y-1">
-              <Label htmlFor="item-name" className="text-[11px] font-bold text-stone-500">Material Name</Label>
+          <CardContent className="p-4 grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 items-end text-xs">
+            <div className="space-y-1 col-span-2 sm:col-span-1 lg:col-span-2">
+              <Label htmlFor="item-name" className="text-[11px] font-bold text-stone-500">Material Name *</Label>
               <Input
                 id="item-name"
-                placeholder="e.g. Cheese, Bread"
+                placeholder="e.g. Cheese, Chicken"
                 value={newItem.name}
                 className="h-9 text-xs rounded-lg"
                 onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
@@ -303,24 +423,54 @@ export default function AdminInventoryPage() {
                 <option value="kg" className="bg-background text-foreground">kg</option>
                 <option value="slice" className="bg-background text-foreground">slice</option>
                 <option value="liter" className="bg-background text-foreground">liter</option>
+                <option value="bottle" className="bg-background text-foreground">bottle</option>
+                <option value="pack" className="bg-background text-foreground">pack</option>
               </select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="item-stock" className="text-[11px] font-bold text-stone-500">Initial Qty</Label>
+              <Label htmlFor="item-stock" className="text-[11px] font-bold text-stone-500">Total Qty</Label>
               <Input
                 id="item-stock"
                 type="number"
+                min="0"
                 value={newItem.stock}
                 className="h-9 text-xs rounded-lg"
-                onChange={(e) => setNewItem({ ...newItem, stock: e.target.value })}
+                onChange={(e) => handleNewItemQtyChange(e.target.value)}
               />
             </div>
-            <div className="flex gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="item-price-unit" className="text-[11px] font-bold text-stone-500">Price / Unit (Rs)</Label>
+              <Input
+                id="item-price-unit"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="Rs / unit"
+                value={newItem.costPerUnit}
+                className="h-9 text-xs rounded-lg"
+                onChange={(e) => handleNewItemPricePerUnitChange(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="item-total-price" className="text-[11px] font-bold text-stone-500">Total Price (Rs)</Label>
+              <Input
+                id="item-total-price"
+                type="number"
+                step="any"
+                min="0"
+                placeholder="Total cost"
+                value={newItem.totalPrice}
+                className="h-9 text-xs rounded-lg"
+                onChange={(e) => handleNewItemTotalPriceChange(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2 col-span-2 sm:col-span-1 items-end">
               <div className="space-y-1 flex-1">
-                <Label htmlFor="item-min" className="text-[11px] font-bold text-stone-500">Alert Min</Label>
+                <Label htmlFor="item-min" className="text-[11px] font-bold text-stone-500">Min Alert</Label>
                 <Input
                   id="item-min"
                   type="number"
+                  min="0"
                   value={newItem.minStock}
                   className="h-9 text-xs rounded-lg"
                   onChange={(e) => setNewItem({ ...newItem, minStock: e.target.value })}
@@ -328,10 +478,11 @@ export default function AdminInventoryPage() {
               </div>
               <button
                 type="button"
+                disabled={isAddingItem}
                 onClick={addInventory}
-                className="bg-primary text-white text-xs font-extrabold px-4 h-9 rounded-lg hover:bg-primary/95 transition active:scale-95 shadow-sm shrink-0"
+                className="bg-primary text-white text-xs font-extrabold px-4 h-9 rounded-lg hover:bg-primary/95 transition active:scale-95 shadow-sm shrink-0 disabled:opacity-50 disabled:pointer-events-none"
               >
-                Save
+                {isAddingItem ? "Adding..." : "Save"}
               </button>
             </div>
           </CardContent>
@@ -416,7 +567,7 @@ export default function AdminInventoryPage() {
                     id="entry-item"
                     className="h-9 w-full rounded-lg border border-border bg-background px-2 py-0 text-xs font-semibold text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
                     value={selectedItemId}
-                    onChange={(e) => setSelectedItemId(e.target.value)}
+                    onChange={(e) => handleSelectEntryItem(e.target.value)}
                     required
                   >
                     <option value="" className="bg-background text-foreground">-- Choose Item --</option>
@@ -434,9 +585,35 @@ export default function AdminInventoryPage() {
                     type="number"
                     value={entryQty}
                     className="h-9 text-xs"
-                    onChange={(e) => setEntryQty(e.target.value)}
+                    onChange={(e) => handleEntryQtyChange(e.target.value)}
                     required
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="entry-unit-cost" className="font-bold text-stone-500">Price / Unit (Rs)</Label>
+                    <Input
+                      id="entry-unit-cost"
+                      type="number"
+                      step="any"
+                      placeholder="Rs / unit"
+                      value={entryPricePerUnit}
+                      className="h-9 text-xs"
+                      onChange={(e) => handleEntryPricePerUnitChange(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="entry-total-cost" className="font-bold text-stone-500">Total Price (Rs)</Label>
+                    <Input
+                      id="entry-total-cost"
+                      type="number"
+                      step="any"
+                      placeholder="Total cost"
+                      value={entryTotalPrice}
+                      className="h-9 text-xs"
+                      onChange={(e) => handleEntryTotalPriceChange(e.target.value)}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="entry-date" className="font-bold text-stone-500">Date & Time</Label>

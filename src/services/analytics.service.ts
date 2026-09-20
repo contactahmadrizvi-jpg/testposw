@@ -1,6 +1,7 @@
 import type { Order, DashboardStats } from "@/types";
 import { getTodayOrders } from "./orders.service";
 import { getLowStockItems } from "./inventory.service";
+import { SHIFT_HOUR_SEQUENCE, formatHourLabel } from "@/lib/business-hours";
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   const orders = await getTodayOrders();
@@ -61,16 +62,16 @@ export function getBestSellers(orders: Order[], limit = 10) {
 
 export function getRevenueByHour(orders: Order[]) {
   const hours: Record<number, number> = {};
-  for (let i = 0; i < 24; i++) hours[i] = 0;
+  for (const h of SHIFT_HOUR_SEQUENCE) hours[h] = 0;
 
   for (const order of orders) {
     const hour = new Date(order.createdAt).getHours();
     hours[hour] = (hours[hour] ?? 0) + order.total;
   }
 
-  return Object.entries(hours).map(([hour, revenue]) => ({
-    hour: `${hour}:00`,
-    revenue,
+  return SHIFT_HOUR_SEQUENCE.map((hour) => ({
+    hour: formatHourLabel(hour),
+    revenue: hours[hour] ?? 0,
   }));
 }
 

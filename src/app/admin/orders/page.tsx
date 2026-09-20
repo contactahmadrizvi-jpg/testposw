@@ -20,6 +20,7 @@ import { printReceipt } from "@/lib/print";
 import { toast } from "sonner";
 import { doc, updateDoc, deleteField } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/config";
+import { getCurrentBusinessDate, getBusinessDayRange } from "@/lib/business-hours";
 
 function AdminOrdersContent() {
   const profile = useAuthStore((s) => s.profile);
@@ -34,11 +35,7 @@ function AdminOrdersContent() {
   // Set tab dynamically based on URL parameter (?tab=pending)
   const [activeTab, setActiveTab] = useState<"all" | "pending">("all");
 
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  });
+  const [selectedDate, setSelectedDate] = useState(() => getCurrentBusinessDate());
 
   // ── Edit order modal state ──
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -105,10 +102,7 @@ function AdminOrdersContent() {
       const localOnly = pendingLocal.filter((p) => !syncedIds.has(p.id));
 
       const isTodaySelected = () => {
-        const d = new Date();
-        const pad = (n: number) => String(n).padStart(2, "0");
-        const todayStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-        return selectedDate === todayStr;
+        return selectedDate === getCurrentBusinessDate();
       };
 
       const finalLocal = isTodaySelected() ? localOnly : [];
@@ -123,8 +117,7 @@ function AdminOrdersContent() {
       localStorage.setItem(cacheKey, JSON.stringify(merged));
     };
 
-    const start = new Date(`${selectedDate}T00:00:00`);
-    const end = new Date(`${selectedDate}T23:59:59.999`);
+    const { start, end } = getBusinessDayRange(selectedDate);
 
     const unsub = subscribeOrders((list) => {
       remoteList = list;
@@ -420,8 +413,8 @@ function AdminOrdersContent() {
                   {formatCurrency(o.total)}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
-                  {/* Print & Edit — available for pending orders */}
-                  {(activeTab === "pending" || !["delivered", "served", "cancelled"].includes(o.status)) && canPrintAndEdit && (
+                  {/* Print & Edit — ONLY available in the Pending Orders tab */}
+                  {activeTab === "pending" && canPrintAndEdit && (
                     <>
                       {/* Re-print receipt */}
                       <button

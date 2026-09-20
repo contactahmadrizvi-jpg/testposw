@@ -22,22 +22,32 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
+import {
+  getCurrentBusinessDate,
+  getBusinessDayRange,
+  getBusinessDateForOrder,
+} from "@/lib/business-hours";
 
 const COLORS = ["#dc2f02", "#e85d04", "#f48c06", "#2d6a4f"];
 
 function getRevenueByDay(orders: any[]) {
-  const daysMap: Record<string, number> = {};
+  const daysMap: Record<string, { label: string; dateVal: number; revenue: number }> = {};
   orders.forEach((o) => {
     if (o.status === "cancelled") return;
     // Exclude credit sales from collected revenue
     if (o.paymentMethod === "credit" || o.paymentStatus === "credit") return;
-    const d = new Date(o.createdAt);
+    const bizDate = getBusinessDateForOrder(o.createdAt);
+    const [year, month, day] = bizDate.split("-").map(Number);
+    const d = new Date(year, month - 1, day);
     const key = d.toLocaleDateString("en-PK", { day: "2-digit", month: "short" });
-    daysMap[key] = (daysMap[key] || 0) + o.total;
+    if (!daysMap[bizDate]) {
+      daysMap[bizDate] = { label: key, dateVal: d.getTime(), revenue: 0 };
+    }
+    daysMap[bizDate].revenue += o.total;
   });
-  return Object.entries(daysMap)
-    .map(([day, revenue]) => ({ day, revenue }))
-    .sort((a, b) => new Date(a.day + " " + new Date().getFullYear()).getTime() - new Date(b.day + " " + new Date().getFullYear()).getTime());
+  return Object.values(daysMap)
+    .sort((a, b) => a.dateVal - b.dateVal)
+    .map((item) => ({ day: item.label, revenue: item.revenue }));
 }
 
 export default function AdminDashboardPage() {
@@ -48,12 +58,8 @@ export default function AdminDashboardPage() {
   const [localTrigger, setLocalTrigger] = useState(0);
   const [viewMode, setViewMode] = useState<"day" | "this_month" | "prev_month" | "custom">("day");
 
-  // Date selection state
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  });
+  // Date selection state: defaults to current active business shift date (1 PM to 3 AM)
+  const [selectedDate, setSelectedDate] = useState(() => getCurrentBusinessDate());
   
   // Custom date range state
   const [fromDate, setFromDate] = useState(() => {
@@ -109,18 +115,23 @@ export default function AdminDashboardPage() {
 
     if (viewMode === "this_month") {
       const now = new Date();
-      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 13, 0, 0, 0);
+      // End at 3:00 AM on the 1st of next month to capture last day's night shift
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 1, 3, 0, 0, 0);
     } else if (viewMode === "prev_month") {
       const now = new Date();
-      start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 13, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), 1, 3, 0, 0, 0);
     } else if (viewMode === "custom") {
-      start = new Date(`${fromDate}T00:00:00`);
-      end = new Date(`${toDate}T23:59:59.999`);
+      const [fromY, fromM, fromD] = fromDate.split("-").map(Number);
+      const [toY, toM, toD] = toDate.split("-").map(Number);
+      start = new Date(fromY, fromM - 1, fromD, 13, 0, 0, 0);
+      end = new Date(toY, toM - 1, toD + 1, 3, 0, 0, 0);
     } else {
-      start = new Date(`${selectedDate}T00:00:00`);
-      end = new Date(`${selectedDate}T23:59:59.999`);
+      // 1 day operational shift: 1:00 PM on selectedDate to 3:00 AM next day
+      const range = getBusinessDayRange(selectedDate);
+      start = range.start;
+      end = range.end;
     }
 
     // Subscribe to selected range orders
@@ -130,10 +141,7 @@ export default function AdminDashboardPage() {
       const localOnly = pendingLocal.filter((p) => !syncedIds.has(p.id));
 
       const isTodaySelected = () => {
-        const d = new Date();
-        const pad = (n: number) => String(n).padStart(2, "0");
-        const todayStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-        return selectedDate === todayStr && viewMode === "day";
+        return selectedDate === getCurrentBusinessDate() && viewMode === "day";
       };
 
       const finalLocal = isTodaySelected() ? localOnly : [];

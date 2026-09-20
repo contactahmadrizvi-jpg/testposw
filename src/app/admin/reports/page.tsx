@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/utils";
 import type { Order } from "@/types";
 import { Button } from "@/components/ui/button";
 import { StatsGridSkeleton } from "@/components/ui/loading-skeletons";
+import { getCurrentBusinessDate, getBusinessDayRange } from "@/lib/business-hours";
 
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
@@ -14,11 +15,7 @@ export default function ReportsPage() {
   const [sellers, setSellers] = useState<ReturnType<typeof getBestSellers>>([]);
   const [viewMode, setViewMode] = useState<"day" | "this_month" | "prev_month">("day");
 
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  });
+  const [selectedDate, setSelectedDate] = useState(() => getCurrentBusinessDate());
 
   useEffect(() => {
     setLoading(true);
@@ -28,15 +25,16 @@ export default function ReportsPage() {
 
     if (viewMode === "this_month") {
       const now = new Date();
-      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 13, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 1, 3, 0, 0, 0);
     } else if (viewMode === "prev_month") {
       const now = new Date();
-      start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 13, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), 1, 3, 0, 0, 0);
     } else {
-      start = new Date(`${selectedDate}T00:00:00`);
-      end = new Date(`${selectedDate}T23:59:59.999`);
+      const range = getBusinessDayRange(selectedDate);
+      start = range.start;
+      end = range.end;
     }
 
     const unsub = subscribeOrders((list) => {

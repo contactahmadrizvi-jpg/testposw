@@ -6,6 +6,7 @@ import { docToData } from "@/lib/firebase/converters";
 import { getFirestoreDb } from "@/lib/firebase/config";
 import { COLLECTIONS, RESTAURANT } from "@/constants";
 import type { Order, OrderItem, Payment, OrderStatus, KitchenStatus } from "@/types";
+import { getCurrentBusinessDate, getBusinessDayRange } from "@/lib/business-hours";
 import { BaseRepository, orderBy, limit, where } from "./base.repository";
 import { deductInventoryForOrder, checkStockForOrderItems, restoreInventoryForOrder } from "./inventory.service";
 import { getNextDailyOrderNumber } from "./order-sequence.service";
@@ -214,11 +215,12 @@ export function subscribeOrderById(
 }
 
 export async function getTodayOrders(): Promise<Order[]> {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+  const bizDate = getCurrentBusinessDate();
+  const { start, end } = getBusinessDayRange(bizDate);
   const startIso = start.toISOString();
+  const endIso = end.toISOString();
   const orders = await ordersRepo.getAll([orderBy("createdAt", "desc"), limit(200)]);
-  return orders.filter((o) => o.createdAt >= startIso);
+  return orders.filter((o) => o.createdAt >= startIso && o.createdAt <= endIso);
 }
 
 export async function deleteOrder(id: string, deletedBy?: string): Promise<void> {

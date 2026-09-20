@@ -24,36 +24,83 @@ export function InventoryEditDialog({ item, onSave }: Props) {
     currentStock: String(item.currentStock),
     totalStock: String(item.totalStock ?? item.currentStock),
     minStock: String(item.minStock),
-    costPerUnit: String(item.costPerUnit),
+    costPerUnit: String(item.costPerUnit || ""),
+    totalPrice: String((Number(item.totalStock ?? item.currentStock) || 0) * (item.costPerUnit || 0) || ""),
     preventSellWhenLow: item.preventSellWhenLow,
   });
 
   useEffect(() => {
     if (open) {
+      const initialTotal = item.totalStock ?? item.currentStock;
+      const initialCost = item.costPerUnit || 0;
+      const initialTotalVal = initialTotal * initialCost;
       setForm({
         name: item.name,
         sku: item.sku,
         unit: item.unit,
         currentStock: String(item.currentStock),
-        totalStock: String(item.totalStock ?? item.currentStock),
+        totalStock: String(initialTotal),
         minStock: String(item.minStock),
-        costPerUnit: String(item.costPerUnit),
+        costPerUnit: String(initialCost || ""),
+        totalPrice: initialTotalVal > 0 ? String(initialTotalVal) : "",
         preventSellWhenLow: item.preventSellWhenLow,
       });
     }
   }, [open, item]);
 
+  // When total stock changes, auto-update remaining stock by the difference
+  const handleTotalStockChange = (newTotalVal: string) => {
+    const prevTotal = Number(item.totalStock ?? item.currentStock) || 0;
+    const newTotal = Number(newTotalVal) || 0;
+    const diff = newTotal - prevTotal;
+    const newRemaining = Math.max(0, item.currentStock + diff);
+    
+    // Auto-calculate total price if cost per unit is set
+    const unitCost = Number(form.costPerUnit) || 0;
+    const newTotPrice = unitCost > 0 && newTotal > 0 ? String(parseFloat((newTotal * unitCost).toFixed(2))) : form.totalPrice;
+
+    setForm((prev) => ({
+      ...prev,
+      totalStock: newTotalVal,
+      currentStock: String(newRemaining),
+      totalPrice: newTotPrice,
+    }));
+  };
+
+  const handleCostPerUnitChange = (costVal: string) => {
+    const unitCost = Number(costVal) || 0;
+    const totalQty = Number(form.totalStock) || 0;
+    const newTotPrice = costVal && totalQty > 0 ? String(parseFloat((totalQty * unitCost).toFixed(2))) : "";
+    setForm((prev) => ({
+      ...prev,
+      costPerUnit: costVal,
+      totalPrice: newTotPrice,
+    }));
+  };
+
+  const handleTotalPriceChange = (totPriceVal: string) => {
+    const totPrice = Number(totPriceVal) || 0;
+    const totalQty = Number(form.totalStock) || 0;
+    const unitCost = totPriceVal && totalQty > 0 ? String(parseFloat((totPrice / totalQty).toFixed(2))) : "";
+    setForm((prev) => ({
+      ...prev,
+      totalPrice: totPriceVal,
+      costPerUnit: unitCost,
+    }));
+  };
+
   async function handleSave() {
+    if (saving) return;
     setSaving(true);
     try {
       await onSave({
-        name: form.name,
-        sku: form.sku,
+        name: form.name.trim(),
+        sku: form.sku.trim(),
         unit: form.unit as InventoryUnit,
-        currentStock: Number(form.currentStock),
-        totalStock: Number(form.totalStock),
-        minStock: Number(form.minStock),
-        costPerUnit: Number(form.costPerUnit),
+        currentStock: Number(form.currentStock) || 0,
+        totalStock: Number(form.totalStock) || 0,
+        minStock: Number(form.minStock) || 0,
+        costPerUnit: Number(form.costPerUnit) || 0,
         preventSellWhenLow: form.preventSellWhenLow,
       });
       setOpen(false);
@@ -103,21 +150,49 @@ export function InventoryEditDialog({ item, onSave }: Props) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Total stock</Label>
-              <Input type="number" value={form.totalStock} onChange={(e) => setForm({ ...form, totalStock: e.target.value })} />
+              <Label>Total Stock</Label>
+              <Input
+                type="number"
+                value={form.totalStock}
+                onChange={(e) => handleTotalStockChange(e.target.value)}
+              />
+              <span className="text-[10px] text-muted-foreground">Auto-adjusts remaining stock</span>
             </div>
             <div>
-              <Label>Current stock (Remaining)</Label>
-              <Input type="number" value={form.currentStock} onChange={(e) => setForm({ ...form, currentStock: e.target.value })} />
+              <Label>Current (Remaining) Stock</Label>
+              <Input
+                type="number"
+                value={form.currentStock}
+                onChange={(e) => setForm({ ...form, currentStock: e.target.value })}
+              />
+              <span className="text-[10px] text-muted-foreground">Available to consume</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Price per Unit (Rs)</Label>
+              <Input
+                type="number"
+                step="any"
+                placeholder="Rs / unit"
+                value={form.costPerUnit}
+                onChange={(e) => handleCostPerUnitChange(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Total Price (Rs)</Label>
+              <Input
+                type="number"
+                step="any"
+                placeholder="Total value"
+                value={form.totalPrice}
+                onChange={(e) => handleTotalPriceChange(e.target.value)}
+              />
             </div>
           </div>
           <div>
-            <Label>Min stock</Label>
+            <Label>Min Stock Alert</Label>
             <Input type="number" value={form.minStock} onChange={(e) => setForm({ ...form, minStock: e.target.value })} />
-          </div>
-          <div>
-            <Label>Cost per unit (PKR)</Label>
-            <Input type="number" value={form.costPerUnit} onChange={(e) => setForm({ ...form, costPerUnit: e.target.value })} />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input
