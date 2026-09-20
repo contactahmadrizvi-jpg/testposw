@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { usePOSStore } from "@/stores/pos-store";
 import { subscribeMenuItems, getActiveCategories, getActiveDeals } from "@/services/menu.service";
 import { checkStockForOrderItems, getRecipeAvailabilityMap, getMaxOrderable } from "@/services/inventory.service";
@@ -84,7 +85,10 @@ export default function POSPage() {
   // Delivery state — delivery is always Lahore (LHR)
   const [street, setStreet] = useState("");
   const [city, setCity] = useState("Lahore");
-  const [deliveryCharges, setDeliveryCharges] = useState(150);
+  const [deliveryCharges, setDeliveryCharges] = useState(0);
+
+  // Order description / special instructions (printed on KOT & receipt)
+  const [orderNotes, setOrderNotes] = useState("");
 
   // Inventory stock limits (max orderable per item) — POS/kitchen orders only
   const [availability, setAvailability] = useState<Map<string, number> | null>(null);
@@ -271,7 +275,7 @@ export default function POSPage() {
     setCustomer(s.name, normalizePhone(s.phone || ""));
     setStreet(s.street || "");
     setCity("Lahore");
-    setDeliveryCharges(s.deliveryCharges || 150);
+    setDeliveryCharges(s.deliveryCharges || 0);
     setPhoneSuggestions([]);
   };
 
@@ -368,6 +372,7 @@ export default function POSPage() {
       kitchenStatus: "new",
       createdBy: profile?.id,
       ...(orderType === "dine_in" && tableNumber ? { tableNumber } : {}),
+      ...(orderNotes.trim() ? { deliveryNotes: orderNotes.trim() } : {}),
       ...(orderType === "delivery" ? {
         deliveryAddress: { id: "pos-delivery", label: "POS Delivery", street, area: "", city, phone: phoneToUse }
       } : {}),
@@ -406,7 +411,8 @@ export default function POSPage() {
       setShowDialpad(false);
       setStreet("");
       setCity("Lahore");
-      setDeliveryCharges(150);
+      setDeliveryCharges(0);
+      setOrderNotes("");
       setPaying(false);
       setCartStep("cart");
       toast.success(`Order #${num} sent to Kitchen successfully!`);
@@ -418,7 +424,7 @@ export default function POSPage() {
     }
   }, [
     paying, items, customerName, customerPhone, orderType, subtotal, discount, total,
-    tableNumber, profile, street, city, deliveryCharges, savedCustomers, occupiedTables, clearOrder, originalSubtotal,
+    tableNumber, profile, street, city, deliveryCharges, orderNotes, savedCustomers, occupiedTables, clearOrder, originalSubtotal,
   ]);
 
   useEffect(() => {
@@ -883,16 +889,18 @@ export default function POSPage() {
                 {/* Name + Phone */}
                 <div className="grid gap-3 grid-cols-1">
                   <div className="relative">
-                    <User className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                    <Input className="h-12 rounded-xl border-stone-200 bg-white pl-10 text-sm"
+                    <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                    <Input className="h-12 rounded-xl border-stone-200 bg-white text-sm"
+                      style={{ paddingLeft: "2.5rem" }}
                       placeholder={orderType === "delivery" ? "Name *" : "Name (optional)"}
                       value={customerName}
                       onChange={(e) => setCustomer(e.target.value, customerPhone)}
                     />
                   </div>
                   <div className="relative">
-                    <Phone className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-                    <Input className="h-12 rounded-xl border-stone-200 bg-white pl-10 text-sm"
+                    <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                    <Input className="h-12 rounded-xl border-stone-200 bg-white text-sm"
+                      style={{ paddingLeft: "2.5rem" }}
                       type="tel"
                       inputMode="numeric"
                       maxLength={11}
@@ -924,6 +932,20 @@ export default function POSPage() {
                   </div>
                 </div>
 
+                {/* Order Description / Notes */}
+                <div className="space-y-1.5">
+                  <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-stone-600">
+                    <Tag className="h-3.5 w-3.5 text-amber-500" /> Order Description / Notes
+                  </p>
+                  <Textarea
+                    className="min-h-[70px] rounded-xl border-stone-200 bg-white text-sm"
+                    placeholder="e.g. Extra spicy, no onions, birthday candles... (optional)"
+                    value={orderNotes}
+                    maxLength={200}
+                    onChange={(e) => setOrderNotes(e.target.value)}
+                  />
+                </div>
+
                 {/* Delivery Address */}
                 {orderType === "delivery" && (
                   <div className="space-y-3 border-t pt-4 border-stone-100">
@@ -936,8 +958,9 @@ export default function POSPage() {
                       <Input className="h-12 rounded-xl border-stone-200 bg-stone-100 text-sm font-bold" placeholder="City *"
                         value={city} readOnly />
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-extrabold text-stone-400">Rs.</span>
-                        <Input type="number" min="0" className="h-12 rounded-xl border-stone-200 bg-white text-sm pl-9 font-black text-primary"
+                        <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-xs font-extrabold text-stone-400">Rs.</span>
+                        <Input type="number" min="0" className="h-12 rounded-xl border-stone-200 bg-white text-sm font-black text-primary"
+                          style={{ paddingLeft: "2.25rem" }}
                           placeholder="Charges" value={deliveryCharges || ""}
                           onChange={(e) => setDeliveryCharges(Math.max(0, parseInt(e.target.value) || 0))} />
                       </div>

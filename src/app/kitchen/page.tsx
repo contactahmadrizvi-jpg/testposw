@@ -725,6 +725,13 @@ export default function KitchenPage() {
                           </div>
                         )}
 
+                        {order.deliveryNotes && (
+                          <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] font-bold text-amber-700">
+                            <span className="shrink-0">📝</span>
+                            <span className="leading-snug">{order.deliveryNotes}</span>
+                          </div>
+                        )}
+
                         <ul className="space-y-2.5 border-t border-slate-100 pt-3">
                           {order.items.map((item, i) => (
                             <li key={i} className="text-sm font-bold text-slate-800 flex items-start justify-between">
@@ -888,6 +895,13 @@ export default function KitchenPage() {
                             </div>
                           )}
                         </div>
+
+                        {order.deliveryNotes && (
+                          <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] font-bold text-amber-700">
+                            <span className="shrink-0">📝</span>
+                            <span className="leading-snug">{order.deliveryNotes}</span>
+                          </div>
+                        )}
 
                         {/* Items */}
                         <div className="flex-1 px-4 py-3 space-y-1.5">

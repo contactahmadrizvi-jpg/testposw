@@ -469,6 +469,7 @@ function buildKOTBody(order: Order, logoBase64: string): string {
   .kot-item { border-bottom: 2px dashed #000; padding: 4px 0; }
   .kot-qty { font-size: 12px; font-weight: 800; word-break: break-word; overflow-wrap: break-word; white-space: normal; }
   .item-note { font-size: 10px; font-weight: 700; color: #b45309; margin-top: 2px; word-break: break-word; overflow-wrap: break-word; }
+  .order-notes { font-size: 11px; font-weight: 700; color: #b45309; margin-top: 4px; word-break: break-word; overflow-wrap: break-word; }
 </style>
 ${logo}
 <h1 style="margin-top: 0px; padding-top: 0px;">KITCHEN ORDER TICKET</h1>
@@ -477,6 +478,7 @@ ${logo}
 <p><strong>${orderTypeLabel(order.type)}</strong>${order.tableNumber != null ? ` · Table ${order.tableNumber}` : ""}</p>
 <p style="font-size:11px">${formatReceiptDateTime(order.createdAt)}</p>
 <p><strong>${escapeHtml(order.customerName)}</strong><br/>${escapeHtml(order.customerPhone)}</p>
+${order.deliveryNotes ? `<div class="order-notes">NOTES: ${escapeHtml(order.deliveryNotes)}</div>` : ""}
 <hr style="border:none;border-top:2px solid #000;margin:6px 0"/>
 ${items}`;
 }

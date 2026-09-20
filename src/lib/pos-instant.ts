@@ -68,6 +68,7 @@ export function buildInstantPosOrder(input: CreateOrderInput): PendingPosOrder {
     updatedAt: now,
     tableNumber: input.tableNumber,
     createdBy: input.createdBy,
+    ...(input.deliveryNotes ? { deliveryNotes: input.deliveryNotes } : {}),
   };
 
   const pending: PendingPosOrder = {
@@ -135,7 +136,13 @@ export function updatePendingOrderStatus(
   }
 }
 
-export function updatePendingOrderItems(localId: string, items: Order["items"], subtotal: number, total: number) {
+export function updatePendingOrderItems(
+  localId: string,
+  items: Order["items"],
+  subtotal: number,
+  total: number,
+  deliveryNotes?: string
+) {
   const list = readPending();
   let updated = false;
   for (const p of list) {
@@ -146,6 +153,10 @@ export function updatePendingOrderItems(localId: string, items: Order["items"], 
       p.input.items = items;
       p.input.subtotal = subtotal;
       p.input.total = total;
+      if (deliveryNotes !== undefined) {
+        p.order.deliveryNotes = deliveryNotes || undefined;
+        p.input.deliveryNotes = deliveryNotes || undefined;
+      }
       updated = true;
     }
   }

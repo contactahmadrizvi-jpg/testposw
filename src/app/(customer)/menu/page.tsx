@@ -56,8 +56,8 @@ function MenuContent() {
       <h1 className="text-3xl font-bold">Our Menu</h1>
       <div className="mt-6 flex flex-col gap-4 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search pizza, burger..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search pizza, burger..." style={{ paddingLeft: "2.5rem" }} value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setCategorySlug("all")} className={`rounded-full px-4 py-2 text-sm font-medium ${categorySlug === "all" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>All</button>
