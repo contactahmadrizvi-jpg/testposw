@@ -4,8 +4,13 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { userHasPermission } from "@/lib/permissions";
 import RiderDashboard from "@/components/admin/RiderDashboard";
-import { DollarSign, ShoppingBag, AlertTriangle, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { DollarSign, ShoppingBag, AlertTriangle, TrendingUp, Clock, Printer, Edit } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { printReceipt } from "@/lib/print";
+import { toast } from "sonner";
+import { ORDER_STATUS_LABELS } from "@/constants";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DatePicker } from "@/components/ui/date-picker";
 import { getPendingKitchenOrders } from "@/lib/pos-instant";
@@ -184,11 +189,24 @@ export default function AdminDashboardPage() {
     .filter((o) => o.paymentMethod === "card")
     .reduce((sum, o) => sum + o.total, 0);
 
+  const pendingOrdersList = orders.filter(
+    (o) => !["delivered", "served", "cancelled"].includes(o.status)
+  );
+
+  async function handlePrintReceipt(order: any) {
+    try {
+      toast.success(`Printing receipt for Order #${order.dailyOrderNumber ?? order.orderNumber}...`);
+      await printReceipt(order);
+    } catch {
+      toast.error("Failed to print receipt");
+    }
+  }
+
   const cards = [
     { label: viewMode === "day" ? "Collected Revenue" : "Collected Revenue", value: formatCurrency(todayRevenue), icon: DollarSign },
-    { label: viewMode === "day" ? "Selected Date Orders" : "Selected Period Orders", value: String(orders.filter(o => o.status !== "cancelled").length), icon: ShoppingBag },
-    { label: "Pending Orders Count", value: String(pendingOrders), icon: TrendingUp },
-    { label: "Low Stock Alert Items", value: String(lowStockCount), icon: AlertTriangle },
+    { label: viewMode === "day" ? "Selected Date Orders" : "Selected Period Orders", value: String(orders.filter(o => o.status !== "cancelled").length), icon: ShoppingBag, href: "/admin/orders" },
+    { label: "Pending Orders Count", value: String(pendingOrdersList.length), icon: TrendingUp, href: "/admin/orders?tab=pending" },
+    { label: "Low Stock Alert Items", value: String(lowStockCount), icon: AlertTriangle, href: "/admin/inventory" },
   ];
 
   const paymentData = [
@@ -250,15 +268,24 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map((c) => (
-          <Card key={c.label} className="shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{c.label}</CardTitle>
-              <c.icon className="h-5 w-5 text-primary" />
-            </CardHeader>
-            <CardContent><p className="text-2xl font-black">{c.value}</p></CardContent>
-          </Card>
-        ))}
+        {cards.map((c: any) => {
+          const cardContent = (
+            <Card key={c.label} className={`shadow-sm transition ${c.href ? "hover:border-primary/50 cursor-pointer" : ""}`}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{c.label}</CardTitle>
+                <c.icon className="h-5 w-5 text-primary" />
+              </CardHeader>
+              <CardContent><p className="text-2xl font-black">{c.value}</p></CardContent>
+            </Card>
+          );
+          return c.href ? (
+            <Link key={c.label} href={c.href}>
+              {cardContent}
+            </Link>
+          ) : (
+            cardContent
+          );
+        })}
       </div>
       {creditOutstanding > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between shadow-sm">
@@ -298,6 +325,77 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Orders Section with Edit and Print */}
+      {pendingOrdersList.length > 0 && (
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-amber-500" />
+              <CardTitle className="text-base font-bold">Pending Orders ({pendingOrdersList.length})</CardTitle>
+            </div>
+            <Link
+              href="/admin/orders?tab=pending"
+              className="text-xs font-bold text-primary hover:underline"
+            >
+              View All in Orders Tab →
+            </Link>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingOrdersList.slice(0, 10).map((o) => (
+              <div
+                key={o.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border bg-muted/20 p-3.5 transition hover:bg-muted/40"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-stone-900">
+                      Order #{o.dailyOrderNumber ?? o.orderNumber}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                      {ORDER_STATUS_LABELS[o.status] ?? o.status}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground capitalize">
+                      · {o.type?.replace("_", " ") || "dine in"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-600">
+                    {o.customerName || "Customer"}{o.customerPhone ? ` · ${o.customerPhone}` : ""}
+                    {o.tableNumber ? ` · Table #${o.tableNumber}` : ""}
+                  </p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    {o.items?.map((item: any) => `${item.quantity}× ${item.name}`).join(", ")}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                  <span className="text-base font-black text-primary">
+                    {formatCurrency(o.total)}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {/* Print Receipt Button */}
+                    <button
+                      type="button"
+                      onClick={() => handlePrintReceipt(o)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:bg-stone-50 active:scale-95"
+                      title="Print Receipt"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </button>
+                    {/* Edit Order Button */}
+                    <Link
+                      href={`/admin/orders?tab=pending&edit=${o.id}`}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 active:scale-95"
+                      title="Edit Order"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
