@@ -26,6 +26,8 @@ function AdminOrdersContent() {
   const searchParams = useSearchParams();
   const filter = ordersFilterForUser(profile);
   const isAdminOrManager = profile && ["super_admin", "admin", "manager"].includes(profile.role);
+  // All roles that can view orders can also print and edit orders
+  const canPrintAndEdit = canViewOrders(profile);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -413,17 +415,18 @@ function AdminOrdersContent() {
                   {formatCurrency(o.total)}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
-                  {/* Re-print receipt */}
-                  <button
-                    type="button"
-                    onClick={() => handleReprint(o)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-600 transition hover:bg-stone-100 active:scale-95"
-                    title="Print Receipt"
-                  >
-                    <Printer className="h-4 w-4" />
-                  </button>
-                  {isAdminOrManager && (
+                  {/* Print & Edit — available to all roles that can view orders */}
+                  {canPrintAndEdit && (
                     <>
+                      {/* Re-print receipt */}
+                      <button
+                        type="button"
+                        onClick={() => handleReprint(o)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-600 transition hover:bg-stone-100 active:scale-95"
+                        title="Print Receipt"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </button>
                       {/* Edit order */}
                       <button
                         type="button"
@@ -433,28 +436,30 @@ function AdminOrdersContent() {
                       >
                         <Edit className="h-4 w-4" />
                       </button>
-                      {/* Delete order */}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (confirm(`Delete Order #${o.dailyOrderNumber ?? o.orderNumber}? This will restore inventory.`)) {
-                            // Optimistic: remove from UI instantly
-                            setOrders((prev) => prev.filter((item) => item.id !== o.id));
-                            try {
-                              await deleteOrder(o.id);
-                              toast.success(`Order #${o.dailyOrderNumber ?? o.orderNumber} deleted`);
-                            } catch (err: any) {
-                              // If Firestore delete failed, put the order back
-                              toast.error(err?.message || "Failed to delete order. Check your permissions.");
-                            }
-                          }
-                        }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition active:scale-95"
-                        title="Delete Order"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
                     </>
+                  )}
+                  {/* Delete — admin/manager only */}
+                  {isAdminOrManager && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm(`Delete Order #${o.dailyOrderNumber ?? o.orderNumber}? This will restore inventory.`)) {
+                          // Optimistic: remove from UI instantly
+                          setOrders((prev) => prev.filter((item) => item.id !== o.id));
+                          try {
+                            await deleteOrder(o.id);
+                            toast.success(`Order #${o.dailyOrderNumber ?? o.orderNumber} deleted`);
+                          } catch (err: any) {
+                            // If Firestore delete failed, put the order back
+                            toast.error(err?.message || "Failed to delete order. Check your permissions.");
+                          }
+                        }
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition active:scale-95"
+                      title="Delete Order"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
               </div>
