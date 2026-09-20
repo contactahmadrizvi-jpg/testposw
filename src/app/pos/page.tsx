@@ -234,6 +234,13 @@ export default function POSPage() {
     return deals.filter((d) => d.title.toLowerCase().includes(q) || d.description.toLowerCase().includes(q));
   }, [deals, isDealsTab, search]);
 
+  // Deals matching the search query — surfaced above menu results on non-deals tabs
+  const searchDeals = useMemo(() => {
+    if (isDealsTab || !search.trim()) return [];
+    const q = search.toLowerCase();
+    return deals.filter((d) => d.title.toLowerCase().includes(q) || d.description.toLowerCase().includes(q));
+  }, [deals, isDealsTab, search]);
+
   // Total qty of a menu item already in the POS cart (all customizations)
   const getPosInCartQty = useCallback(
     (menuItemId: string) =>
@@ -449,6 +456,76 @@ export default function POSPage() {
       : (deal.fixedPrice ?? rawTotal);
   };
 
+  // Deal card renderer — shared by the Deals tab grid and search results
+  const renderDealCard = (deal: Deal) => {
+    const dealTotal = getDealTotal(deal);
+    const dealItems = menu.filter((m) => deal.menuItemIds?.includes(m.id));
+    return (
+      <div key={deal.id}
+        className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-amber-200/60 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-amber-400/50"
+        style={{ height: "235px" }}>
+        {/* Deal header */}
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-white/80" />
+              <span className="text-sm font-black text-white truncate">{deal.title}</span>
+            </div>
+            {deal.discountPercent && (
+              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-black text-white shrink-0">
+                {deal.discountPercent}% OFF
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-white/80 line-clamp-1">{deal.description}</p>
+        </div>
+
+        {/* Items preview */}
+        {dealItems.length > 0 && (
+          <div className="flex flex-1 gap-1.5 overflow-x-auto px-3 py-2 items-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {dealItems.map((item) => {
+              const qty = deal.itemQuantities?.[item.id] ?? 1;
+              return (
+                <div key={item.id} className="flex-shrink-0 flex flex-col items-center">
+                  <div className="h-10 w-10 overflow-hidden rounded-lg bg-stone-100 relative">
+                    {item.imageUrl
+                      ? <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                      : <div className="flex h-full w-full items-center justify-center text-lg">🍔</div>}
+                    {qty > 1 && (
+                      <span className="absolute top-0 right-0 bg-primary text-white text-[8px] font-black px-1 rounded-bl">
+                        {qty}x
+                      </span>
+                    )}
+                  </div>
+                  <span className="mt-0.5 max-w-[44px] truncate text-[8px] text-stone-500 text-center">
+                    {item.name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Add button with TOTAL price */}
+        <button type="button"
+          className="mt-auto shrink-0 flex items-center justify-between bg-amber-50 px-4 py-3 hover:bg-amber-100 active:bg-amber-200 transition border-t border-amber-100"
+          onClick={() => {
+            addDeal(deal, menu);
+            toast.success(`"${deal.title}" added to cart`);
+          }}
+        >
+          <div className="flex flex-col items-start">
+            <span className="text-base font-black text-amber-700">{formatCurrency(dealTotal)}</span>
+            <span className="text-[10px] text-amber-500 font-semibold">Total deal price</span>
+          </div>
+          <span className="flex items-center gap-1 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-black text-white shadow-sm hover:bg-amber-600 active:scale-95 transition">
+            <Plus className="h-3.5 w-3.5" /> Add Deal
+          </span>
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#f8f4ef]">
 
@@ -511,7 +588,7 @@ export default function POSPage() {
               <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
               <Input
                 className="h-12 rounded-2xl border-0 bg-white pl-12 text-base shadow-sm ring-1 ring-stone-200/80"
-                placeholder={isDealsTab ? "Search deals..." : "Search menu..."}
+                placeholder={isDealsTab ? "Search deals..." : "Search menu & deals..."}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -521,74 +598,7 @@ export default function POSPage() {
           {/* Deals Grid */}
           {isDealsTab ? (
             <div className="grid grid-cols-1 gap-3 overflow-y-auto px-3 pb-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredDeals.map((deal) => {
-                const dealTotal = getDealTotal(deal);
-                const dealItems = menu.filter((m) => deal.menuItemIds?.includes(m.id));
-                return (
-                  <div key={deal.id}
-                    className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-amber-200/60 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-amber-400/50"
-                    style={{ height: "235px" }}>
-                    {/* Deal header */}
-                    <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 shrink-0">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Tag className="h-4 w-4 text-white/80" />
-                          <span className="text-sm font-black text-white truncate">{deal.title}</span>
-                        </div>
-                        {deal.discountPercent && (
-                          <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-black text-white shrink-0">
-                            {deal.discountPercent}% OFF
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-white/80 line-clamp-1">{deal.description}</p>
-                    </div>
-
-                    {/* Items preview */}
-                    {dealItems.length > 0 && (
-                      <div className="flex flex-1 gap-1.5 overflow-x-auto px-3 py-2 items-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {dealItems.map((item) => {
-                          const qty = deal.itemQuantities?.[item.id] ?? 1;
-                          return (
-                            <div key={item.id} className="flex-shrink-0 flex flex-col items-center">
-                              <div className="h-10 w-10 overflow-hidden rounded-lg bg-stone-100 relative">
-                                {item.imageUrl
-                                  ? <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
-                                  : <div className="flex h-full w-full items-center justify-center text-lg">🍔</div>}
-                                {qty > 1 && (
-                                  <span className="absolute top-0 right-0 bg-primary text-white text-[8px] font-black px-1 rounded-bl">
-                                    {qty}x
-                                  </span>
-                                )}
-                              </div>
-                              <span className="mt-0.5 max-w-[44px] truncate text-[8px] text-stone-500 text-center">
-                                {item.name}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Add button with TOTAL price */}
-                    <button type="button"
-                      className="mt-auto shrink-0 flex items-center justify-between bg-amber-50 px-4 py-3 hover:bg-amber-100 active:bg-amber-200 transition border-t border-amber-100"
-                      onClick={() => {
-                        addDeal(deal, menu);
-                        toast.success(`"${deal.title}" added to cart`);
-                      }}
-                    >
-                      <div className="flex flex-col items-start">
-                        <span className="text-base font-black text-amber-700">{formatCurrency(dealTotal)}</span>
-                        <span className="text-[10px] text-amber-500 font-semibold">Total deal price</span>
-                      </div>
-                      <span className="flex items-center gap-1 rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-black text-white shadow-sm hover:bg-amber-600 active:scale-95 transition">
-                        <Plus className="h-3.5 w-3.5" /> Add Deal
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
+              {filteredDeals.map(renderDealCard)}
               {filteredDeals.length === 0 && (
                 <p className="col-span-full py-16 text-center text-stone-400">No deals found</p>
               )}
@@ -596,6 +606,17 @@ export default function POSPage() {
           ) : (
             /* Regular Menu Grid */
             <div className="grid grid-cols-2 gap-3 overflow-y-auto px-3 pb-4 sm:grid-cols-3 sm:px-4 lg:grid-cols-4">
+              {searchDeals.length > 0 && (
+                <div className="col-span-full">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-amber-600">
+                    <Tag className="h-3.5 w-3.5" /> Matching Deals
+                    <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-700">{searchDeals.length}</span>
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {searchDeals.map(renderDealCard)}
+                  </div>
+                </div>
+              )}
               {menuLoading ? (
                 <div className="col-span-full p-2"><FoodGridSkeleton count={8} /></div>
               ) : filtered.map((item) => (
@@ -639,7 +660,7 @@ export default function POSPage() {
                   )}
                 </div>
               ))}
-              {!menuLoading && !filtered.length && (
+              {!menuLoading && !filtered.length && searchDeals.length === 0 && (
                 <div className="col-span-full flex flex-col items-center gap-2 py-16 text-center">
                   {!navigator.onLine ? (
                     <>
