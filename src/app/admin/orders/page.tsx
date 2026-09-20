@@ -259,7 +259,6 @@ function AdminOrdersContent() {
       if (isLocalPending) {
         m.updatePendingOrderItems(editingOrder.id, editedItems, newSubtotal, newTotal, editedNotes.trim());
         toast.success("Local order updated!");
-        void printKOT(updatedOrder);
         setEditingOrder(null);
         return;
       }
@@ -299,7 +298,6 @@ function AdminOrdersContent() {
       });
 
       toast.success("Order updated successfully!");
-      void printKOT(updatedOrder);
       setEditingOrder(null);
     } catch (err) {
       toast.error("Failed to update order");
