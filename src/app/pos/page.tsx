@@ -27,7 +27,7 @@ import { subscribeMenuItems, getActiveCategories, getActiveDeals } from "@/servi
 import { checkStockForOrderItems, getRecipeAvailabilityMap, getMaxOrderable } from "@/services/inventory.service";
 import type { CreateOrderInput } from "@/services/orders.service";
 import { subscribeKitchenOrders } from "@/services/orders.service";
-import { preloadPrintHeader, printKOT } from "@/lib/print";
+import { preloadPrintHeader, printReceipt } from "@/lib/print";
 import { buildInstantPosOrder } from "@/lib/pos-instant";
 import { startPosSyncWorker } from "@/services/pos-sync.service";
 import { formatCurrency, cn, normalizePhone, isValidPhone } from "@/lib/utils";
@@ -394,7 +394,9 @@ export default function POSPage() {
         return;
       }
 
-      await printKOT(order);
+      // Print 2 receipt copies (no KOT)
+      await printReceipt(order);
+      await printReceipt(order);
       if (orderType === "delivery") {
         try {
           const { doc: fsDoc, setDoc } = await import("firebase/firestore");

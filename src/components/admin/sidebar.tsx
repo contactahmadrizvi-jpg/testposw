@@ -80,7 +80,7 @@ function NavLinksContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <>
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 overflow-y-auto space-y-1 p-4">
         {visible.map((item) => {
           let active = pathname === item.href;
           if (item.key === "pending-orders") {
@@ -143,11 +143,13 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AdminSidebar() {
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r bg-card lg:flex">
-      <div className="border-b p-6">
+    <aside className="hidden w-64 shrink-0 flex-col border-r bg-card lg:flex h-screen sticky top-0">
+      <div className="shrink-0 border-b p-6">
         <SomoLogo size="md" showText />
       </div>
-      <NavLinks />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <NavLinks />
+      </div>
     </aside>
   );
 }

@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { subscribeOrders, deleteOrder } from "@/services/orders.service";
 import { subscribeMenuItems, getActiveDeals } from "@/services/menu.service";
 import { getPendingKitchenOrders } from "@/lib/pos-instant";
-import { printReceipt, printKOT } from "@/lib/print";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -16,7 +15,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { canViewOrders, ordersFilterForUser } from "@/lib/permissions";
 import type { Order, MenuItem, MenuVariant, Deal } from "@/types";
 import { OrderListSkeleton } from "@/components/ui/loading-skeletons";
-import { Trash2, Edit, Printer, Minus, Plus } from "lucide-react";
+import { Trash2, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { doc, updateDoc, deleteField } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/config";
@@ -26,8 +25,6 @@ function AdminOrdersContent() {
   const searchParams = useSearchParams();
   const filter = ordersFilterForUser(profile);
   const isAdminOrManager = profile && ["super_admin", "admin", "manager"].includes(profile.role);
-  // All roles that can view orders can also print and edit orders
-  const canPrintAndEdit = canViewOrders(profile);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,16 +234,6 @@ function AdminOrdersContent() {
     toast.success(`Added deal: ${deal.title}`);
   }
 
-  // Re-print a receipt without changing anything on the order
-  async function handleReprint(order: Order) {
-    try {
-      toast.success(`Printing receipt for Order #${order.dailyOrderNumber ?? order.orderNumber}...`);
-      await printReceipt(order);
-    } catch {
-      toast.error("Failed to print receipt");
-    }
-  }
-
   async function saveEditedOrder() {
     if (!editingOrder) return;
     if (editedItems.length === 0) {
@@ -415,29 +402,6 @@ function AdminOrdersContent() {
                   {formatCurrency(o.total)}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5">
-                  {/* Print & Edit — available to all roles that can view orders */}
-                  {canPrintAndEdit && (
-                    <>
-                      {/* Re-print receipt */}
-                      <button
-                        type="button"
-                        onClick={() => handleReprint(o)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-600 transition hover:bg-stone-100 active:scale-95"
-                        title="Print Receipt"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </button>
-                      {/* Edit order */}
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(o)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100 active:scale-95"
-                        title="Edit Order"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                    </>
-                  )}
                   {/* Delete — admin/manager only */}
                   {isAdminOrManager && (
                     <button
