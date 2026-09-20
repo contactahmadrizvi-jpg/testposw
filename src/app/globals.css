@@ -4,6 +4,7 @@
 
 :root {
   /* SOMO Ultra Professional Theme */
+  color-scheme: dark; /* native select popups, scrollbars & date pickers render dark */
   --background: #0a0506;
   --foreground: #ffffff;
   --card: #1a0f10;
