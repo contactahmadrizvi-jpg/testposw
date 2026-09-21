@@ -644,6 +644,50 @@ export default function KitchenPage() {
         </div>
       </header>
 
+      {/* ── Table Quick Actions (Dine-in Orders) ── */}
+      {(() => {
+        const dineInOrders = orders.filter(o => o.type === "dine_in" && o.tableNumber != null && o.status !== "served" && o.status !== "cancelled");
+        
+        if (dineInOrders.length === 0) return null;
+        
+        // Group by table number
+        const tableMap = new Map<number, Order>();
+        dineInOrders.forEach(order => {
+          if (order.tableNumber != null && !tableMap.has(order.tableNumber)) {
+            tableMap.set(order.tableNumber, order);
+          }
+        });
+        
+        const tables = Array.from(tableMap.entries()).sort((a, b) => a[0] - b[0]);
+        
+        return (
+          <div className="shrink-0 border-b bg-amber-50/40 px-6 py-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-black uppercase tracking-wider text-stone-800">Quick Print Receipt:</span>
+              {tables.map(([tableNum, order]) => (
+                <button
+                  key={tableNum}
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await printReceipt(order);
+                      toast.success(`Receipt printed for Table #${tableNum}`);
+                    } catch (err) {
+                      toast.error("Failed to print receipt");
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border-2 border-amber-300 text-stone-900 font-bold text-xs hover:bg-amber-50 hover:border-amber-400 active:scale-95 transition shadow-sm"
+                >
+                  <span className="text-base">🍽️</span>
+                  <span>Table {tableNum}</span>
+                  <span className="text-[10px]">🖨️</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {loading ? (
         <div className="p-6"><KitchenColumnsSkeleton /></div>
       ) : (
