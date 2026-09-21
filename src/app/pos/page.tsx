@@ -83,6 +83,7 @@ export default function POSPage() {
   const [showDialpad, setShowDialpad] = useState(false);
   const [cartStep, setCartStep] = useState<"cart" | "details">("cart");
   const [activeView, setActiveView] = useState<"menu" | "hold">("menu");
+  const [editingHoldOrderId, setEditingHoldOrderId] = useState<string | null>(null);
 
   // Delivery state — delivery is always Lahore (LHR)
   const [street, setStreet] = useState("");
@@ -120,7 +121,7 @@ export default function POSPage() {
   } = usePOSStore();
 
   // Hold orders store
-  const { holdOrders, addHoldOrder, removeHoldOrder } = useHoldOrdersStore();
+  const { holdOrders, addHoldOrder, removeHoldOrder, updateHoldOrder } = useHoldOrdersStore();
 
   // Load hold order into cart for editing
   const loadHoldOrderForEdit = useCallback((holdOrder: HoldOrder) => {
@@ -153,12 +154,18 @@ export default function POSPage() {
       }
     });
     
-    // Remove from hold
-    removeHoldOrder(holdOrder.id);
+    // DON'T remove from hold yet - we'll update it when user saves
+    // Store the hold order ID so we know we're editing
+    setEditingHoldOrderId(holdOrder.id);
     
-    // Switch to menu view and cart step
+    // Switch to menu view and stay on cart step
     setActiveView("menu");
     setCartStep("cart");
+    
+    toast.success(`Editing Table #${holdOrder.tableNumber}`, {
+      description: "Modify items and click 'Update Hold Order' when done",
+    });
+  }, [clearOrder, setOrderType, setCustomer, setTableNumber, addItem, addDeal, menu, deals]);
     
     toast.success(`Table #${holdOrder.tableNumber} loaded for editing`, {
       description: "Modify items and re-submit when ready",
@@ -254,6 +261,31 @@ export default function POSPage() {
       toast.error(err?.message || "Failed to print receipt");
     }
   }, [profile, removeHoldOrder]);
+
+  // Update hold order after editing
+  const updateHoldOrderAfterEdit = useCallback(() => {
+    if (!editingHoldOrderId) return;
+    
+    const holdOrder = holdOrders.find(h => h.id === editingHoldOrderId);
+    if (!holdOrder) return;
+
+    // Update the hold order with new items
+    updateHoldOrder(editingHoldOrderId, {
+      items: items.map(item => ({ ...item })),
+      subtotal: originalSubtotal,
+      discount: totalItemDiscounts,
+      total: total,
+      orderNotes: orderNotes.trim(),
+    });
+
+    clearOrder();
+    setEditingHoldOrderId(null);
+    setActiveView("hold");
+    
+    toast.success(`Table #${holdOrder.tableNumber} updated!`, {
+      description: "Hold order has been updated with new items",
+    });
+  }, [editingHoldOrderId, holdOrders, updateHoldOrder, items, originalSubtotal, totalItemDiscounts, total, orderNotes, clearOrder]);
 
   // ── Load cache immediately on mount (before any Firebase calls) ──
   useLayoutEffect(() => {
@@ -1187,11 +1219,19 @@ export default function POSPage() {
                     </div>
                   </div>
                 )}
-                <Button size="lg" disabled={!items.length}
-                  className="h-12 w-full rounded-2xl text-sm font-bold shadow-lg shadow-primary/25"
-                  onClick={() => setCartStep("details")}>
-                  Next (Add Details) →
-                </Button>
+                {editingHoldOrderId ? (
+                  <Button size="lg" disabled={!items.length}
+                    className="h-12 w-full rounded-2xl text-sm font-bold shadow-lg shadow-amber-500/25 bg-amber-500 hover:bg-amber-600"
+                    onClick={updateHoldOrderAfterEdit}>
+                    Update Hold Order
+                  </Button>
+                ) : (
+                  <Button size="lg" disabled={!items.length}
+                    className="h-12 w-full rounded-2xl text-sm font-bold shadow-lg shadow-primary/25"
+                    onClick={() => setCartStep("details")}>
+                    Next (Add Details) →
+                  </Button>
+                )}
               </div>
             </>
           ) : (
