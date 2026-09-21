@@ -147,8 +147,8 @@ export default function POSPage() {
           discountPercent: 0,
           fixedPrice: item.subtotal,
           isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          validFrom: new Date().toISOString(),
+          validTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year from now
         };
         addDeal(deal, menu);
       } else {
