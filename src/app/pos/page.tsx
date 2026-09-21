@@ -146,7 +146,7 @@ export default function POSPage() {
           itemPrices: item.dealSnapshot.items.reduce((acc: any, i: any) => ({...acc, [i.menuItemId]: i.price}), {}),
           discountPercent: 0,
           fixedPrice: item.subtotal,
-          active: true,
+          isActive: true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
