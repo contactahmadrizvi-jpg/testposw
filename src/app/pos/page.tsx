@@ -135,22 +135,18 @@ export default function POSPage() {
     
     // Load items into cart
     holdOrder.items.forEach((item) => {
-      if (item.isDeal && item.dealSnapshot) {
-        // Reconstruct deal from snapshot
-        const deal: Deal = {
-          id: item.dealSnapshot.dealId,
-          title: item.menuItem.name,
-          description: "",
-          menuItemIds: item.dealSnapshot.items.map((i: any) => i.menuItemId),
-          itemQuantities: item.dealSnapshot.items.reduce((acc: any, i: any) => ({...acc, [i.menuItemId]: i.quantity}), {}),
-          itemPrices: item.dealSnapshot.items.reduce((acc: any, i: any) => ({...acc, [i.menuItemId]: i.price}), {}),
-          discountPercent: 0,
-          fixedPrice: item.subtotal,
-          isActive: true,
-          validFrom: new Date().toISOString(),
-          validTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year from now
-        };
-        addDeal(deal, menu);
+      if (item.isDeal) {
+        // For deals, just add them back directly using addDeal
+        // We need to find or reconstruct the deal from the menu
+        const dealId = item.menuItem.id.replace('deal-', '');
+        const matchingDeal = deals.find(d => d.id === dealId);
+        
+        if (matchingDeal) {
+          addDeal(matchingDeal, menu);
+        } else {
+          // If deal no longer exists, add as regular item with deal price
+          addItem(item.menuItem, item.quantity, item.customization);
+        }
       } else {
         // Add regular item
         addItem(item.menuItem, item.quantity, item.customization);
