@@ -257,31 +257,6 @@ export default function POSPage() {
     }
   }, [profile, removeHoldOrder]);
 
-  // Update hold order after editing
-  const updateHoldOrderAfterEdit = useCallback(() => {
-    if (!editingHoldOrderId) return;
-    
-    const holdOrder = holdOrders.find(h => h.id === editingHoldOrderId);
-    if (!holdOrder) return;
-
-    // Update the hold order with new items
-    updateHoldOrder(editingHoldOrderId, {
-      items: items.map(item => ({ ...item })),
-      subtotal: originalSubtotal,
-      discount: totalItemDiscounts,
-      total: total,
-      orderNotes: orderNotes.trim(),
-    });
-
-    clearOrder();
-    setEditingHoldOrderId(null);
-    setActiveView("hold");
-    
-    toast.success(`Table #${holdOrder.tableNumber} updated!`, {
-      description: "Hold order has been updated with new items",
-    });
-  }, [editingHoldOrderId, holdOrders, updateHoldOrder, items, originalSubtotal, totalItemDiscounts, total, orderNotes, clearOrder]);
-
   // ── Load cache immediately on mount (before any Firebase calls) ──
   useLayoutEffect(() => {
     console.log('[POS] 🚀 Loading cached data...');
@@ -373,6 +348,31 @@ export default function POSPage() {
       .filter((o) => o.type === "dine_in" && o.tableNumber != null)
       .map((o) => o.tableNumber as number);
   }, [activeOrders]);
+
+  // Update hold order after editing
+  const updateHoldOrderAfterEdit = useCallback(() => {
+    if (!editingHoldOrderId) return;
+    
+    const holdOrder = holdOrders.find(h => h.id === editingHoldOrderId);
+    if (!holdOrder) return;
+
+    // Update the hold order with new items
+    updateHoldOrder(editingHoldOrderId, {
+      items: items.map(item => ({ ...item })),
+      subtotal: originalSubtotal,
+      discount: totalItemDiscounts,
+      total: total,
+      orderNotes: orderNotes.trim(),
+    });
+
+    clearOrder();
+    setEditingHoldOrderId(null);
+    setActiveView("hold");
+    
+    toast.success(`Table #${holdOrder.tableNumber} updated!`, {
+      description: "Hold order has been updated with new items",
+    });
+  }, [editingHoldOrderId, holdOrders, updateHoldOrder, items, originalSubtotal, totalItemDiscounts, total, orderNotes, clearOrder]);
 
   const isDealsTab = activeCategory === DEALS_CATEGORY_ID;
 
