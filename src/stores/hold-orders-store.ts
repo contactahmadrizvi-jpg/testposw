@@ -1,9 +1,10 @@
 import { create } from "zustand";
-import type { CartItem, OrderType } from "@/types";
+import type { OrderType } from "@/types";
+import type { POSLine } from "@/stores/pos-store";
 
 export type HoldOrder = {
   id: string;
-  items: CartItem[];
+  items: POSLine[];
   orderType: OrderType;
   customerName: string;
   customerPhone: string;
