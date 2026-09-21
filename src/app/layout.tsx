@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     siteName: "SOMO",
     images: [
       {
-        url: "/logo.jpeg",
+        url: "/logo.png",
         width: 800,
         height: 800,
         alt: "SOMO Logo",
