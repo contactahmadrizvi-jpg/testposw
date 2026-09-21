@@ -166,11 +166,6 @@ export default function POSPage() {
       description: "Modify items and click 'Update Hold Order' when done",
     });
   }, [clearOrder, setOrderType, setCustomer, setTableNumber, addItem, addDeal, menu, deals]);
-    
-    toast.success(`Table #${holdOrder.tableNumber} loaded for editing`, {
-      description: "Modify items and re-submit when ready",
-    });
-  }, [clearOrder, setOrderType, setCustomer, setTableNumber, addItem, addDeal, removeHoldOrder, menu]);
 
   // Print receipt for held order (without sending to kitchen)
   const printHoldReceipt = useCallback(async (holdOrder: HoldOrder) => {
