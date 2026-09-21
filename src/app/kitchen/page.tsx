@@ -49,6 +49,7 @@ export default function KitchenPage() {
   // Editing order modal state
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [editedItems, setEditedItems] = useState<Order["items"]>([]);
+  const [showMenuModal, setShowMenuModal] = useState(false);
   const [menuSearch, setMenuSearch] = useState("");
 
   // Settlement modal state
@@ -398,6 +399,7 @@ export default function KitchenPage() {
     setEditingOrder(order);
     setEditedItems(JSON.parse(JSON.stringify(order.items)));
     setMenuSearch("");
+    setShowMenuModal(false);
   }
 
   function handleUpdateQty(idx: number, delta: number) {
@@ -1034,8 +1036,8 @@ export default function KitchenPage() {
       {/* Edit Order Modal */}
       {editingOrder && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
+          <div className="w-full max-w-2xl max-h-[90vh] rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center border-b px-6 py-4 bg-slate-50 shrink-0">
               <h3 className="text-base font-black text-slate-900">
                 Modify Order #{editingOrder.dailyOrderNumber ?? editingOrder.orderNumber}
               </h3>
@@ -1044,144 +1046,257 @@ export default function KitchenPage() {
                 className="text-xs font-bold text-slate-400 hover:text-slate-600"
                 onClick={() => setEditingOrder(null)}
               >
-                Cancel
+                ✕ Close
               </button>
             </div>
 
-            {/* Menu Item Addition Selector */}
-            <div className="bg-stone-50 p-3.5 rounded-2xl border space-y-2">
-              <span className="text-xs font-bold text-stone-600 uppercase tracking-wider">Add Item From Menu</span>
-              <Input
-                type="text"
-                placeholder="🔍 Search food menu..."
-                value={menuSearch}
-                onChange={(e) => setMenuSearch(e.target.value)}
-                className="h-10 text-xs rounded-xl border bg-white px-3"
-              />
-              
+            {/* Add Item Button */}
+            <div className="px-6 py-4 border-b bg-orange-50/30 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowMenuModal(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary/90 active:scale-95 transition shadow-md"
+              >
+                <Plus className="h-5 w-5" />
+                <span>Add Item From Menu</span>
+              </button>
+            </div>
+
+            {/* Items list */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+              {editedItems.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <p className="font-bold">No items in order</p>
+                  <p className="text-xs mt-1">Click "Add Item From Menu" to add items</p>
+                </div>
+              ) : (
+                editedItems.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between border rounded-xl p-3 bg-slate-50 hover:bg-slate-100 transition">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">{item.name}</p>
+                      <p className="text-xs text-slate-500">{item.customization?.variantName || "Standard"} • {formatCurrency(item.price)} each</p>
+                      <p className="text-xs font-black text-primary mt-1">Subtotal: {formatCurrency(item.subtotal)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        type="button"
+                        className="h-8 w-8 rounded-lg bg-white border-2 border-slate-200 flex items-center justify-center active:scale-95 hover:bg-slate-50 transition"
+                        onClick={() => handleUpdateQty(idx, -1)}
+                      >
+                        <Minus className="h-4 w-4 text-slate-600" />
+                      </button>
+                      <span className="w-8 text-center font-bold text-base text-slate-900">{item.quantity}</span>
+                      <button
+                        type="button"
+                        className="h-8 w-8 rounded-lg bg-primary text-white flex items-center justify-center active:scale-95 hover:bg-primary/90 transition shadow-sm"
+                        onClick={() => handleUpdateQty(idx, 1)}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="ml-2 px-3 py-1.5 text-xs text-red-600 font-bold bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 active:scale-95 transition"
+                        onClick={() => handleRemoveItem(idx)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex gap-3 border-t px-6 py-4 bg-slate-50 shrink-0">
+              <Button variant="outline" className="flex-1 rounded-xl font-bold h-11" onClick={() => setEditingOrder(null)}>
+                Cancel
+              </Button>
+              <Button className="flex-1 rounded-xl font-bold h-11" onClick={saveEditedOrder} disabled={isSavingEdited}>
+                {isSavingEdited ? "Saving..." : "Save Changes & Print KOT"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Menu Selection Modal */}
+      {showMenuModal && editingOrder && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-4xl max-h-[90vh] rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b px-6 py-4 bg-gradient-to-r from-primary/10 to-orange-50 shrink-0">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Select Item to Add</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Search and add items or deals to the order</p>
+              </div>
+              <button
+                type="button"
+                className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-900 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition"
+                onClick={() => setShowMenuModal(false)}
+              >
+                ✕ Close Menu
+              </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="px-6 py-4 border-b bg-slate-50 shrink-0">
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="🔍 Search menu items and deals..."
+                  value={menuSearch}
+                  onChange={(e) => setMenuSearch(e.target.value)}
+                  className="h-12 text-sm rounded-xl border-2 border-slate-200 bg-white px-4 pr-10 font-semibold focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  autoFocus
+                />
+                {menuSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setMenuSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Menu Items Grid */}
+            <div className="flex-1 overflow-y-auto p-6">
               {(() => {
-                if (!menuSearch.trim()) return null;
-                const queryStr = menuSearch.toLowerCase();
-                const matchedItems = menuItems
-                  .filter((m) => m.name.toLowerCase().includes(queryStr))
-                  .slice(0, 10)
-                  .flatMap((m) => {
-                    if (m.variants && m.variants.length > 0) {
-                      return m.variants.map((v) => ({
-                        key: `${m.id}-${v.id}`,
-                        label: `${m.name} (${v.name})`,
-                        price: m.price + v.priceModifier,
-                        onClick: () => handleDirectAddMenuItem(m, v),
-                        isDeal: false,
-                      }));
-                    }
-                    return [{
-                      key: m.id,
-                      label: m.name,
-                      price: m.price,
-                      onClick: () => handleDirectAddMenuItem(m),
-                      isDeal: false,
-                    }];
-                  });
+                const query = menuSearch.toLowerCase().trim();
+                
+                // Filter menu items
+                const filteredItems = query 
+                  ? menuItems.filter(m => m.name.toLowerCase().includes(query))
+                  : menuItems;
+                
+                // Filter deals
+                const filteredDeals = query
+                  ? deals.filter(d => 
+                      d.title.toLowerCase().includes(query) || 
+                      (d.description && d.description.toLowerCase().includes(query))
+                    )
+                  : deals;
 
-                const matchedDeals = deals
-                  .filter((d) =>
-                    d.title.toLowerCase().includes(queryStr) ||
-                    (d.description && d.description.toLowerCase().includes(queryStr))
-                  )
-                  .slice(0, 5)
-                  .map((d) => {
-                    const dealItems = menuItems.filter((m) => d.menuItemIds?.includes(m.id));
-                    const rawTotal = dealItems.reduce((sum, item) => {
-                      const custom = d.itemPrices?.[item.id];
-                      const qty = d.itemQuantities?.[item.id] ?? 1;
-                      const price = custom !== undefined
-                        ? custom
-                        : item.price + (d.selectedVariants?.[item.id] ? (item.variants?.find((v) => v.id === d.selectedVariants?.[item.id])?.priceModifier ?? 0) : 0);
-                      return sum + price * qty;
-                    }, 0);
-                    const dealPrice = d.discountPercent
-                      ? Math.round(rawTotal * (1 - d.discountPercent / 100))
-                      : (d.fixedPrice ?? rawTotal);
+                const hasResults = filteredItems.length > 0 || filteredDeals.length > 0;
 
-                    return {
-                      key: `deal-${d.id}`,
-                      label: `🎁 ${d.title}`,
-                      price: dealPrice,
-                      onClick: () => handleAddDeal(d),
-                      isDeal: true,
-                    };
-                  });
-
-                const results = [...matchedItems, ...matchedDeals];
+                if (!hasResults) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <p className="text-4xl mb-4">🔍</p>
+                      <p className="text-lg font-bold text-slate-400">No items found</p>
+                      <p className="text-sm text-slate-300 mt-1">Try a different search term</p>
+                    </div>
+                  );
+                }
 
                 return (
-                  <div className="max-h-36 overflow-y-auto border rounded-xl bg-white p-2 grid grid-cols-2 gap-1.5">
-                    {results.map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={item.onClick}
-                        className={cn(
-                          "text-left p-2 border rounded-lg text-xs font-bold hover:bg-orange-50 hover:border-primary transition flex flex-col justify-between",
-                          item.isDeal ? "border-amber-200 bg-amber-50/20 hover:bg-amber-50" : ""
-                        )}
-                      >
-                        <span className="truncate">{item.label}</span>
-                        <span className="text-primary font-black mt-0.5">{item.price.toLocaleString()} PKR</span>
-                      </button>
-                    ))}
-                    {results.length === 0 && (
-                      <span className="col-span-2 text-center text-xs text-slate-400 py-4">No matching items</span>
+                  <div className="space-y-6">
+                    {/* Deals Section */}
+                    {filteredDeals.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-black uppercase tracking-wider text-amber-600 mb-3 flex items-center gap-2">
+                          🎁 Deals & Combos
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{filteredDeals.length}</span>
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {filteredDeals.map(deal => {
+                            const dealItems = menuItems.filter(m => deal.menuItemIds?.includes(m.id));
+                            const rawTotal = dealItems.reduce((sum, item) => {
+                              const custom = deal.itemPrices?.[item.id];
+                              const qty = deal.itemQuantities?.[item.id] ?? 1;
+                              const price = custom !== undefined ? custom : item.price;
+                              return sum + price * qty;
+                            }, 0);
+                            const dealPrice = deal.discountPercent
+                              ? Math.round(rawTotal * (1 - deal.discountPercent / 100))
+                              : (deal.fixedPrice ?? rawTotal);
+
+                            return (
+                              <button
+                                key={deal.id}
+                                type="button"
+                                onClick={() => {
+                                  handleAddDeal(deal);
+                                  setShowMenuModal(false);
+                                }}
+                                className="text-left p-4 border-2 border-amber-200 rounded-xl hover:border-amber-400 hover:bg-amber-50/50 active:scale-95 transition bg-gradient-to-br from-amber-50/30 to-orange-50/30"
+                              >
+                                <p className="font-black text-sm text-slate-900 mb-1 flex items-center gap-2">
+                                  🎁 {deal.title}
+                                  {deal.discountPercent && (
+                                    <span className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded-full">{deal.discountPercent}% OFF</span>
+                                  )}
+                                </p>
+                                {deal.description && (
+                                  <p className="text-xs text-slate-500 mb-2 line-clamp-1">{deal.description}</p>
+                                )}
+                                <p className="text-lg font-black text-amber-600">{formatCurrency(dealPrice)}</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Menu Items Section */}
+                    {filteredItems.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-black uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-2">
+                          🍔 Menu Items
+                          <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">{filteredItems.length}</span>
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {filteredItems.map(item => {
+                            if (item.variants && item.variants.length > 0) {
+                              // Show variant buttons
+                              return (
+                                <div key={item.id} className="border-2 border-slate-200 rounded-xl overflow-hidden hover:border-primary/50 transition bg-white">
+                                  <div className="p-3 border-b bg-slate-50">
+                                    <p className="font-bold text-xs text-slate-900 truncate">{item.name}</p>
+                                  </div>
+                                  <div className="p-2 space-y-1.5">
+                                    {item.variants.map(variant => (
+                                      <button
+                                        key={variant.id}
+                                        type="button"
+                                        onClick={() => {
+                                          handleDirectAddMenuItem(item, variant);
+                                          setShowMenuModal(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 rounded-lg border border-slate-200 hover:border-primary hover:bg-orange-50 active:scale-95 transition bg-white"
+                                      >
+                                        <p className="text-xs font-bold text-slate-700">{variant.name}</p>
+                                        <p className="text-sm font-black text-primary">{formatCurrency(item.price + variant.priceModifier)}</p>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // Regular item without variants
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => {
+                                  handleDirectAddMenuItem(item);
+                                  setShowMenuModal(false);
+                                }}
+                                className="text-left p-4 border-2 border-slate-200 rounded-xl hover:border-primary hover:bg-orange-50 active:scale-95 transition bg-white"
+                              >
+                                <p className="font-bold text-sm text-slate-900 mb-2 truncate">{item.name}</p>
+                                <p className="text-lg font-black text-primary">{formatCurrency(item.price)}</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
                 );
               })()}
-            </div>
-
-            {/* Items list */}
-            <div className="max-h-[220px] overflow-y-auto space-y-3 pr-1">
-              {editedItems.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between border-b pb-2.5 last:border-0">
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{item.name}</p>
-                    <p className="text-xs text-slate-400">{item.customization?.variantName || "Standard"}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      className="h-7 w-7 rounded bg-slate-100 flex items-center justify-center active:scale-95 border"
-                      onClick={() => handleUpdateQty(idx, -1)}
-                    >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="w-5 text-center font-bold text-sm">{item.quantity}</span>
-                    <button
-                      type="button"
-                      className="h-7 w-7 rounded bg-slate-800 text-white flex items-center justify-center active:scale-95"
-                      onClick={() => handleUpdateQty(idx, 1)}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs text-red-500 font-extrabold ml-3 active:scale-95"
-                      onClick={() => handleRemoveItem(idx)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3 border-t pt-4">
-              <Button variant="outline" className="flex-1 rounded-xl font-bold" onClick={() => setEditingOrder(null)}>
-                Discard
-              </Button>
-              <Button className="flex-1 rounded-xl font-bold" onClick={saveEditedOrder} disabled={isSavingEdited}>
-                {isSavingEdited ? "Saving..." : "Save Changes"}
-              </Button>
             </div>
           </div>
         </div>
