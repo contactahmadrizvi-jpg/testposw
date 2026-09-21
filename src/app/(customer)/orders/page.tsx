@@ -10,22 +10,22 @@ import type { Order } from "@/types";
 import { OrderListSkeleton } from "@/components/ui/loading-skeletons";
 
 export default function OrdersHistoryPage() {
-  const { profile, loading: authLoading } = useAuthStore();
+  const { profile, loading: authLoading, authReady } = useAuthStore();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading && !profile) router.replace("/login");
+    if (authReady && !authLoading && !profile) router.replace("/login");
     if (profile) {
       setLoading(true);
       getOrdersByUser(profile.id)
         .then(setOrders)
         .finally(() => setLoading(false));
     }
-  }, [profile, authLoading, router]);
+  }, [profile, authLoading, authReady, router]);
 
-  if (authLoading || (profile && loading)) {
+  if (!authReady || authLoading || (profile && loading)) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-8">
         <h1 className="text-2xl font-bold">Order History</h1>

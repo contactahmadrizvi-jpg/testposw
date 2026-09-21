@@ -7,14 +7,14 @@ import { useAuthStore } from "@/stores/auth-store";
 import { PageLoader } from "@/components/ui/page-loader";
 
 export default function ProfilePage() {
-  const { profile, loading, logout } = useAuthStore();
+  const { profile, loading, authReady, logout } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !profile) router.replace("/login");
-  }, [profile, loading, router]);
+    if (authReady && !loading && !profile) router.replace("/login");
+  }, [profile, loading, authReady, router]);
 
-  if (loading) {
+  if (!authReady || loading) {
     return <PageLoader message="Loading profile..." />;
   }
 

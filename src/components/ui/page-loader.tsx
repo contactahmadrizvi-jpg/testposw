@@ -35,10 +35,6 @@ export function PageLoader({
 }
 
 export function AdminAuthLoading() {
-  // Check for cached profile to speed up display
-  const cachedProfile = typeof window !== 'undefined' ? localStorage.getItem('auth_profile_cache') : null;
-  const hasCachedData = !!cachedProfile;
-
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="hidden w-64 shrink-0 border-r bg-card p-6 lg:block">
@@ -57,11 +53,8 @@ export function AdminAuthLoading() {
           </div>
         </div>
         <p className="font-medium text-muted-foreground">
-          {hasCachedData ? "Loading your workspace..." : "Authenticating..."}
+          Loading workspace...
         </p>
-        {!hasCachedData && (
-          <p className="text-xs text-muted-foreground">This may take a moment on first load</p>
-        )}
       </div>
     </div>
   );

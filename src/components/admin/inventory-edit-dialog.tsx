@@ -190,18 +190,29 @@ export function InventoryEditDialog({ item, onSave }: Props) {
               />
             </div>
           </div>
-          <div>
-            <Label>Min Stock Alert</Label>
-            <Input type="number" value={form.minStock} onChange={(e) => setForm({ ...form, minStock: e.target.value })} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Min Stock Alert</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="e.g. 5"
+                value={form.minStock}
+                className="w-full"
+                onChange={(e) => setForm({ ...form, minStock: e.target.value })}
+              />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 text-sm pb-1">
+                <input
+                  type="checkbox"
+                  checked={form.preventSellWhenLow}
+                  onChange={(e) => setForm({ ...form, preventSellWhenLow: e.target.checked })}
+                />
+                Block sales when low
+              </label>
+            </div>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.preventSellWhenLow}
-              onChange={(e) => setForm({ ...form, preventSellWhenLow: e.target.checked })}
-            />
-            Block sales when stock is low
-          </label>
         </div>
         <div className="mt-6 flex gap-2">
           <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>

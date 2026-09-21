@@ -314,20 +314,22 @@ body > * {
 }
 
 /* Premium Input Fields
-   NOTE: no padding for `select` here — this rule is un-layered, so it beats
-   every Tailwind utility class (v4 cascade layers) and squashed the text
-   inside fixed-height selects. Each select controls its own padding. */
-input, textarea, select {
-  background: rgba(26, 15, 16, 0.8);
-  border: 1px solid rgba(255, 71, 87, 0.2);
-  color: #ffffff;
-  border-radius: 14px;
-  transition: all 0.3s ease;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
-}
+   NOTE: Base styles are placed in @layer base so Tailwind utility classes
+   (pl-12, px-3, etc.) in the utilities layer always win. This fixes the
+   icon-padded search inputs where typed text was hiding under the icon. */
+@layer base {
+  input, textarea, select {
+    background: rgba(26, 15, 16, 0.8);
+    border: 1px solid rgba(255, 71, 87, 0.2);
+    color: #ffffff;
+    border-radius: 14px;
+    transition: all 0.3s ease;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
 
-input, textarea {
-  padding: 14px 18px;
+  input, textarea {
+    padding: 14px 18px;
+  }
 }
 
 input:focus, textarea:focus, select:focus {

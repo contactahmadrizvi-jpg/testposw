@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Menu } from "lucide-react";
 import { AdminSidebar, AdminMobileNav } from "@/components/admin/sidebar";
-import { useAuthStore, isAdminRole } from "@/stores/auth-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { AdminAuthLoading } from "@/components/ui/page-loader";
 import { Button } from "@/components/ui/button";
 import { subscribeOrders } from "@/services/orders.service";
@@ -16,24 +16,28 @@ import { userHasPermission } from "@/lib/permissions";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { profile, loading, firebaseUser, refreshProfile } = useAuthStore();
-  const [checked, setChecked] = useState(false);
+  const { profile, loading, authReady, firebaseUser, refreshProfile } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const lastAlertRef = useRef(new Date().toISOString());
 
   useEffect(() => {
-    if (loading) return;
+    setMounted(true);
+  }, []);
+
+  // ONLY redirect to login once Firebase auth has confirmed the user is unauthenticated.
+  // If authReady is false, Firebase is still checking stored credentials — NEVER redirect.
+  useEffect(() => {
+    if (!mounted || !authReady) return;
     if (!firebaseUser) {
       router.replace("/login?redirect=/admin");
-      return;
     }
-    setChecked(true);
-  }, [firebaseUser, loading, router]);
+  }, [mounted, authReady, firebaseUser, router]);
 
   // Redirect non-admin users away from dashboard if they don't have permission
   useEffect(() => {
-    if (!profile || loading) return;
+    if (!mounted || !authReady || !profile || loading) return;
     
     // If on dashboard page and user doesn't have dashboard permission, redirect to first allowed page
     if (pathname === "/admin" && !userHasPermission(profile, "dashboard")) {
@@ -55,11 +59,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
       // If no specific permission, they'll see the "Access Restricted" message on dashboard
     }
-  }, [profile, pathname, loading, router]);
+  }, [mounted, authReady, profile, pathname, loading, router]);
 
   // Subscribe to new incoming orders for toast + sound alert
   useEffect(() => {
-    if (!profile) return;
+    if (!mounted || !profile) return;
 
     const unsub = subscribeOrders((list) => {
       // Find orders created after the layout or last order alert was recorded
@@ -78,13 +82,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
 
     return () => unsub();
-  }, [profile]);
+  }, [mounted, profile]);
 
-  if (loading || !checked) {
+  // Show loading skeleton while mounting, waiting for Firebase auth, or waiting for profile
+  if (!mounted || !authReady || (loading && !profile)) {
     return <AdminAuthLoading />;
   }
 
-  if (!firebaseUser) return null;
+  // If Firebase confirmed no user is logged in, show loading shell while redirecting
+  if (!firebaseUser) {
+    return <AdminAuthLoading />;
+  }
 
   if (!profile) {
     return (

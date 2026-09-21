@@ -10,6 +10,7 @@ interface AuthState {
   firebaseUser: User | null;
   profile: AppUser | null;
   loading: boolean;
+  authReady: boolean;
   initialized: boolean;
   setProfile: (profile: AppUser | null) => void;
   setSession: (user: User | null, profile: AppUser | null) => void;
@@ -28,12 +29,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   firebaseUser: null,
   profile: null,
   loading: true,
+  authReady: false,
   initialized: false,
 
-  setProfile: (profile) => set({ profile }),
+  setProfile: (profile) => {
+    if (profile && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("auth_profile_cache", JSON.stringify(profile));
+      } catch {}
+    }
+    set({ profile });
+  },
 
-  setSession: (user, profile) =>
-    set({ firebaseUser: user, profile, loading: false }),
+  setSession: (user, profile) => {
+    if (profile && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("auth_profile_cache", JSON.stringify(profile));
+      } catch {}
+    }
+    set({ firebaseUser: user, profile, loading: false, authReady: true });
+  },
 
   refreshProfile: async () => {
     const uid = get().firebaseUser?.uid;
@@ -43,6 +58,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     set({ loading: true });
     const profile = await getUserProfile(uid);
+    if (profile && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("auth_profile_cache", JSON.stringify(profile));
+      } catch {}
+    }
     set({ profile, loading: false });
     return profile;
   },
@@ -56,47 +76,70 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   init: () => {
     if (get().initialized) return () => {};
-    set({ initialized: true, loading: true });
+    set({ initialized: true });
 
-    // Try to load cached profile immediately for faster UI
-    try {
-      const cachedProfile = localStorage.getItem('auth_profile_cache');
-      if (cachedProfile) {
-        const profile = JSON.parse(cachedProfile);
-        set({ profile, loading: false });
+    // Read cached profile immediately for fast UI availability
+    let cachedProfile: AppUser | null = null;
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("auth_profile_cache");
+        if (raw) {
+          cachedProfile = JSON.parse(raw) as AppUser;
+          if (cachedProfile && cachedProfile.id) {
+            set({ profile: cachedProfile });
+          }
+        }
+      } catch (e) {
+        console.warn("[auth] Failed to parse cached profile:", e);
       }
-    } catch (e) {
-      console.warn('[auth] Failed to load cached profile:', e);
     }
 
-    // Safety timeout — if Firebase auth hasn't resolved in 8 seconds,
-    // force loading to false so the UI doesn't hang forever.
-    // This can happen when a stale service worker blocks network requests.
+    // Safety timeout — if Firebase auth hasn't resolved in 6 seconds,
+    // force authReady and loading: false so the UI doesn't hang forever.
     const authTimeout = setTimeout(() => {
-      if (get().loading) {
-        console.warn("[auth] Firebase auth timed out — forcing loading: false");
-        set({ loading: false });
+      if (!get().authReady) {
+        console.warn("[auth] Firebase auth timed out — forcing authReady: true");
+        set({ authReady: true, loading: false });
       }
-    }, 8000);
+    }, 6000);
 
     const unsub = subscribeAuth(async (user) => {
       clearTimeout(authTimeout);
       if (!user) {
-        set({ firebaseUser: null, profile: null, loading: false });
-        localStorage.removeItem('auth_profile_cache');
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem("auth_profile_cache");
+          } catch {}
+        }
+        set({ firebaseUser: null, profile: null, loading: false, authReady: true });
         return;
       }
-      set({ firebaseUser: user, loading: true });
-      const profile = await getUserProfile(user.uid);
-      set({ profile, loading: false });
-      
-      // Cache the profile for faster subsequent loads
-      if (profile) {
-        try {
-          localStorage.setItem('auth_profile_cache', JSON.stringify(profile));
-        } catch (e) {
-          console.warn('[auth] Failed to cache profile:', e);
+
+      // Confirmed Firebase authenticated user!
+      const currentProfile = get().profile;
+      set({
+        firebaseUser: user,
+        authReady: true,
+        // If we already have a profile from local cache, stop loading immediately
+        loading: !currentProfile,
+      });
+
+      // Now fetch fresh profile from Firestore to ensure permissions/status are fresh
+      try {
+        const freshProfile = await getUserProfile(user.uid);
+        if (freshProfile) {
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("auth_profile_cache", JSON.stringify(freshProfile));
+            } catch {}
+          }
+          set({ profile: freshProfile, loading: false });
+        } else {
+          set({ loading: false });
         }
+      } catch (err) {
+        console.warn("[auth] Error fetching Firestore profile:", err);
+        set({ loading: false });
       }
     });
 
@@ -107,7 +150,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("auth_profile_cache");
+      } catch {}
+    }
     await logoutUser();
-    set({ firebaseUser: null, profile: null, loading: false });
+    set({ firebaseUser: null, profile: null, loading: false, authReady: true });
   },
 }));

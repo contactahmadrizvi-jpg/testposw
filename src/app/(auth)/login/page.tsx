@@ -17,7 +17,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? "/admin";
-  const { setSession, canAccessAdmin, loading, firebaseUser, profile, refreshProfile } =
+  const { setSession, canAccessAdmin, loading, authReady, firebaseUser, profile, refreshProfile } =
     useAuthStore();
 
   const [email, setEmail] = useState("");
@@ -25,7 +25,7 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
+    if (!authReady || loading) return;
     if (firebaseUser && profile) {
       if (profile.role === "employee") {
         const { logout } = useAuthStore.getState();
@@ -38,9 +38,9 @@ function LoginForm() {
         router.replace(redirect.startsWith("/admin") || redirect === "/pos" ? redirect : home);
       }
     }
-  }, [loading, firebaseUser, profile, router, redirect]);
+  }, [authReady, loading, firebaseUser, profile, router, redirect]);
 
-  if (loading) {
+  if (!authReady || loading) {
     return <PageLoader message="Checking session..." />;
   }
 
