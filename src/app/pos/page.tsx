@@ -175,13 +175,21 @@ export default function POSPage() {
     setPrintingHoldReceipt(holdOrder.id);
 
     try {
-      // Get next daily order number for receipt
-      const dailyNum = bumpLocalDailyNumber();
+      // Use the SAME order number that was on the KOT (stored in hold order)
+      const dailyNum = holdOrder.dailyOrderNumber;
+      const orderNum = holdOrder.orderNumber;
+      
+      // If for some reason no order number was stored, generate one
+      if (!dailyNum || !orderNum) {
+        toast.error("Order number missing. This order may not have been printed correctly.");
+        setPrintingHoldReceipt(null);
+        return;
+      }
       
       // Create order object ONLY for printing (not saved to database at all)
       const tempOrder = {
         id: `temp-receipt-${Date.now()}`,
-        orderNumber: String(dailyNum),
+        orderNumber: orderNum,
         dailyOrderNumber: dailyNum,
         customerName: holdOrder.customerName,
         customerPhone: holdOrder.customerPhone,
@@ -218,7 +226,7 @@ export default function POSPage() {
       // Remove from hold after successful print
       removeHoldOrder(holdOrder.id);
       
-      toast.success("Receipt printed! Order completed and table freed.");
+      toast.success(`Receipt printed! Order #${dailyNum} completed and table freed.`);
     } catch (err: any) {
       toast.error(err?.message || "Failed to print receipt");
     } finally {
@@ -367,10 +375,19 @@ export default function POSPage() {
   const discount = totalItemDiscounts;
 
   const occupiedTables = useMemo(() => {
-    return activeOrders
+    // Tables occupied by active kitchen orders
+    const kitchenTables = activeOrders
       .filter((o) => o.type === "dine_in" && o.tableNumber != null)
       .map((o) => o.tableNumber as number);
-  }, [activeOrders]);
+    
+    // Tables occupied by hold orders
+    const holdTables = holdOrders
+      .filter((h) => h.orderType === "dine_in" && h.tableNumber != null)
+      .map((h) => h.tableNumber!);
+    
+    // Combine and return unique table numbers
+    return [...new Set([...kitchenTables, ...holdTables])];
+  }, [activeOrders, holdOrders]);
 
   // Update hold order after editing
   const updateHoldOrderAfterEdit = useCallback(() => {
@@ -578,7 +595,7 @@ export default function POSPage() {
         // Print KOT for kitchen (but don't save order to database)
         await printKOT(tempOrder as any);
         
-        // Add to hold (for later receipt printing)
+        // Add to hold (for later receipt printing) - STORE THE ORDER NUMBER
         addHoldOrder({
           items: items.map(item => ({ ...item })),
           orderType,
@@ -589,6 +606,8 @@ export default function POSPage() {
           subtotal: originalSubtotal,
           discount,
           total: finalTotal,
+          dailyOrderNumber: dailyNum, // Store the order number from KOT
+          orderNumber: String(dailyNum),
         });
 
         clearOrder();

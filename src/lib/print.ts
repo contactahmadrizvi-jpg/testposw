@@ -182,6 +182,7 @@ function printHtmlOnce(html: string): Promise<void> {
     });
   }
   
+  console.log('[Print] Starting new print job...');
   isPrinting = true;
   safetyResetPrintFlag(); // Start safety timer
 
@@ -197,6 +198,7 @@ function printHtmlOnce(html: string): Promise<void> {
       return;
     }
 
+    console.log('[Print] Creating print iframe...');
     const iframe = document.createElement("iframe");
     // Give iframe a real 58mm width (≈220px at 96dpi) so the browser renders
     // at the correct thermal-paper width. Zero width causes the browser to
@@ -205,10 +207,12 @@ function printHtmlOnce(html: string): Promise<void> {
     
     try {
       document.body.appendChild(iframe);
+      console.log('[Print] Iframe added to document');
     } catch (err) {
       console.error('[Print] Failed to create print iframe:', err);
       isPrinting = false;
       if (printTimeout) clearTimeout(printTimeout);
+      alert('⚠️ Failed to create print iframe!\n\nError: ' + (err as Error).message);
       resolve();
       return;
     }
@@ -220,23 +224,28 @@ function printHtmlOnce(html: string): Promise<void> {
       isPrinting = false;
       if (printTimeout) clearTimeout(printTimeout);
       iframe.remove();
+      alert('⚠️ Failed to access print window!');
       resolve();
       return;
     }
 
+    console.log('[Print] Writing content to iframe...');
     doc.open();
     doc.write(html);
     doc.close();
+    console.log('[Print] Content written successfully');
 
     // Guard: runPrint must only execute once even if both the
     // readyState===complete branch AND iframe.onload fire.
     let hasPrinted = false;
     const done = () => {
+      console.log('[Print] Cleanup started');
       isPrinting = false;
       if (printTimeout) clearTimeout(printTimeout);
       setTimeout(() => {
         try {
           iframe.remove();
+          console.log('[Print] Iframe removed');
         } catch (err) {
           console.warn('[Print] Failed to remove iframe:', err);
         }
@@ -245,19 +254,23 @@ function printHtmlOnce(html: string): Promise<void> {
     };
 
     const runPrint = () => {
-      if (hasPrinted) return;
+      if (hasPrinted) {
+        console.log('[Print] Already printed, skipping');
+        return;
+      }
       hasPrinted = true;
       // Remove onload handler to prevent any late fires
       iframe.onload = null;
       
       try {
-        console.log('[Print] Triggering print dialog...');
+        console.log('[Print] Focusing iframe window...');
         win.focus();
+        console.log('[Print] Calling window.print()...');
         win.print();
-        console.log('[Print] Print dialog opened successfully');
+        console.log('[Print] ✅ Print dialog opened successfully!');
       } catch (err) {
-        console.error('[Print] Print failed:', err);
-        alert('⚠️ Print Failed!\n\nError: ' + (err as Error).message + '\n\nPlease check your printer connection and browser settings.');
+        console.error('[Print] ❌ Print failed:', err);
+        alert('⚠️ Print Failed!\n\nError: ' + (err as Error).message + '\n\nPlease check:\n1. Printer is connected and turned on\n2. Printer drivers are installed\n3. Browser has print permissions\n4. Try using Chrome or Edge browser');
       } finally {
         done();
       }
@@ -266,16 +279,19 @@ function printHtmlOnce(html: string): Promise<void> {
     // Safety: If print doesn't happen within 5 seconds, force cleanup
     const printSafetyTimeout = setTimeout(() => {
       if (!hasPrinted) {
-        console.warn('[Print] Print dialog timeout, forcing cleanup...');
+        console.warn('[Print] Print dialog timeout (5s), forcing cleanup...');
         runPrint();
       }
     }, 5000);
 
     if (doc.readyState === "complete") {
+      console.log('[Print] Document ready, printing immediately');
       clearTimeout(printSafetyTimeout);
       runPrint();
     } else {
+      console.log('[Print] Waiting for document load...');
       iframe.onload = () => {
+        console.log('[Print] Document loaded, printing now');
         clearTimeout(printSafetyTimeout);
         runPrint();
       };

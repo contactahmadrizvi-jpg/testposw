@@ -14,6 +14,8 @@ export type HoldOrder = {
   discount: number;
   total: number;
   createdAt: string;
+  dailyOrderNumber?: number; // Store the order number from KOT
+  orderNumber?: string; // Store the full order number
 };
 
 type HoldOrdersState = {
