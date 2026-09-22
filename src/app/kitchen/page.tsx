@@ -311,13 +311,13 @@ export default function KitchenPage() {
       const now = new Date().toISOString();
       const updatedFields = {
         status: "cancelled" as const,
-        kitchenStatus: "cancelled" as const,
+        kitchenStatus: "served" as const, // Use "served" as kitchenStatus since "cancelled" is not a valid KitchenStatus
         updatedAt: now,
       };
 
       if (order.id.startsWith("local-")) {
         const m = await import("@/lib/pos-instant");
-        m.updatePendingOrderStatus(order.id, "cancelled", "cancelled");
+        m.updatePendingOrderStatus(order.id, "cancelled", "served");
         
         try {
           await updateDoc(doc(getFirestoreDb(), "orders", order.id), updatedFields);
