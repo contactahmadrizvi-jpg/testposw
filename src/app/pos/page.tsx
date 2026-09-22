@@ -591,11 +591,8 @@ export default function POSPage() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        
-        // Print KOT for kitchen (but don't save order to database)
-        await printKOT(tempOrder as any);
-        
-        // Add to hold (for later receipt printing) - STORE THE ORDER NUMBER
+
+        // ── State management first (instant) ──
         addHoldOrder({
           items: items.map(item => ({ ...item })),
           orderType,
@@ -606,7 +603,7 @@ export default function POSPage() {
           subtotal: originalSubtotal,
           discount,
           total: finalTotal,
-          dailyOrderNumber: dailyNum, // Store the order number from KOT
+          dailyOrderNumber: dailyNum,
           orderNumber: String(dailyNum),
         });
 
@@ -616,16 +613,22 @@ export default function POSPage() {
         setCity("Lahore");
         setDeliveryCharges(0);
         setOrderNotes("");
-        setPaying(false);
+        setPaying(false);  // ← Release button immediately, don't wait for print dialog
         setCartStep("cart");
-        toast.success(`Dine-in order for Table #${tableNumber} on hold!`, {
-          description: "KOT printed for kitchen. Order is on hold for billing.",
+        toast.success(`Dine-in Table #${tableNumber} — KOT printing...`, {
+          description: "Order added to hold. Print dialog opening.",
         });
-        
+
+        // ── Fire print asynchronously (don't await — dialog must not block next order) ──
+        printKOT(tempOrder as any).catch((err) => {
+          console.error('[POS] KOT print failed:', err);
+          toast.error("KOT print failed — check printer connection");
+        });
+
         // Refresh stock limits
         getRecipeAvailabilityMap().then(setAvailability).catch(() => {});
       } catch (err: any) {
-        toast.error(err?.message || "Failed to print KOT");
+        toast.error(err?.message || "Failed to place dine-in order");
         setPaying(false);
       }
       return;
@@ -657,34 +660,38 @@ export default function POSPage() {
       const { order } = buildInstantPosOrder(inputData);
       const num = order.dailyOrderNumber ?? order.orderNumber;
 
-      // Print KOT only (no receipt)
-      await printKOT(order);
-      
-      if (orderType === "delivery") {
-        try {
-          const { doc: fsDoc, setDoc } = await import("firebase/firestore");
-          const deliveryRef = fsDoc(getFirestoreDb(), "deliveries", order.id);
-          await setDoc(deliveryRef, {
-            orderId: order.id, orderNumber: num, customerName: nameToUse, customerPhone: phoneToUse,
-            address: `${street}, ${city}`, deliveryCharge, total: finalTotal, createdAt: new Date().toISOString(),
-          });
-        } catch (e) {
-          console.error("Failed to save delivery order info globally:", e);
-        }
-      }
-      
+      // ── State management first (instant), then print asynchronously ──
       clearOrder();
       setShowDialpad(false);
       setStreet("");
       setCity("Lahore");
       setDeliveryCharges(0);
       setOrderNotes("");
-      setPaying(false);
+      setPaying(false);  // ← Release button immediately
       setCartStep("cart");
-      toast.success(`Order #${num} sent to kitchen!`, {
-        description: "KOT printed for kitchen",
+      toast.success(`Order #${num} sent to kitchen — KOT printing...`);
+
+      // Fire print asynchronously
+      printKOT(order).catch((err) => {
+        console.error('[POS] KOT print failed:', err);
+        toast.error("KOT print failed — check printer connection");
       });
-      
+
+      if (orderType === "delivery") {
+        void (async () => {
+          try {
+            const { doc: fsDoc, setDoc } = await import("firebase/firestore");
+            const deliveryRef = fsDoc(getFirestoreDb(), "deliveries", order.id);
+            await setDoc(deliveryRef, {
+              orderId: order.id, orderNumber: num, customerName: nameToUse, customerPhone: phoneToUse,
+              address: `${street}, ${city}`, deliveryCharge, total: finalTotal, createdAt: new Date().toISOString(),
+            });
+          } catch (e) {
+            console.error("Failed to save delivery order info globally:", e);
+          }
+        })();
+      }
+
       // Refresh stock limits (sync worker deducts inventory in the background)
       getRecipeAvailabilityMap().then(setAvailability).catch(() => {});
     } catch (err: any) {
