@@ -29,7 +29,7 @@ import { checkStockForOrderItems, getRecipeAvailabilityMap, getMaxOrderable } fr
 import type { CreateOrderInput } from "@/services/orders.service";
 import { subscribeKitchenOrders } from "@/services/orders.service";
 import { preloadPrintHeader, printReceiptDouble, printKOT } from "@/lib/print";
-import { buildInstantPosOrder } from "@/lib/pos-instant";
+import { buildInstantPosOrder, bumpLocalDailyNumber } from "@/lib/pos-instant";
 import { startPosSyncWorker } from "@/services/pos-sync.service";
 import { formatCurrency, cn, normalizePhone, isValidPhone } from "@/lib/utils";
 import { getFirestoreDb } from "@/lib/firebase/config";
@@ -174,45 +174,48 @@ export default function POSPage() {
     if (printingHoldReceipt === holdOrder.id) return; // Prevent double click
     setPrintingHoldReceipt(holdOrder.id);
 
-    const orderItems: OrderItem[] = holdOrder.items.map((line, i) => ({
-      id: `hold-${i}`,
-      menuItemId: line.menuItem.id,
-      name: line.menuItem.name,
-      price: line.unitPrice,
-      quantity: line.quantity,
-      customization: line.customization,
-      subtotal: line.subtotal,
-      ...(line.dealSnapshot ? { dealSnapshot: line.dealSnapshot } : {}),
-    }));
-
-    const inputData: CreateOrderInput = {
-      customerName: holdOrder.customerName,
-      customerPhone: holdOrder.customerPhone,
-      type: holdOrder.orderType,
-      items: orderItems,
-      subtotal: holdOrder.subtotal,
-      tax: 0,
-      deliveryCharge: 0,
-      discount: holdOrder.discount,
-      total: holdOrder.total,
-      source: "pos",
-      paymentMethod: "cash",
-      status: "served", // Mark as served to complete the order
-      kitchenStatus: "served", // Kitchen status also served
-      createdBy: profile?.id,
-      tableNumber: holdOrder.tableNumber,
-      ...(holdOrder.orderNotes ? { deliveryNotes: holdOrder.orderNotes } : {}),
-    };
-
     try {
-      const { order } = buildInstantPosOrder(inputData);
+      // Get next daily order number for receipt
+      const dailyNum = bumpLocalDailyNumber();
       
-      // Override payment status to mark as paid (buildInstantPosOrder always sets it to "pending")
-      order.paymentStatus = "paid";
+      // Create order object ONLY for printing (not saved to database at all)
+      const tempOrder = {
+        id: `temp-receipt-${Date.now()}`,
+        orderNumber: String(dailyNum),
+        dailyOrderNumber: dailyNum,
+        customerName: holdOrder.customerName,
+        customerPhone: holdOrder.customerPhone,
+        type: holdOrder.orderType,
+        items: holdOrder.items.map((line, i) => ({
+          id: `hold-${i}`,
+          menuItemId: line.menuItem.id,
+          name: line.menuItem.name,
+          price: line.unitPrice,
+          quantity: line.quantity,
+          customization: line.customization,
+          subtotal: line.subtotal,
+          ...(line.dealSnapshot ? { dealSnapshot: line.dealSnapshot } : {}),
+        })),
+        subtotal: holdOrder.subtotal,
+        tax: 0,
+        deliveryCharge: 0,
+        discount: holdOrder.discount,
+        total: holdOrder.total,
+        source: "pos" as const,
+        paymentMethod: "cash" as const,
+        status: "served" as const,
+        kitchenStatus: "served" as const,
+        paymentStatus: "paid" as const,
+        tableNumber: holdOrder.tableNumber,
+        deliveryNotes: holdOrder.orderNotes || undefined,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
       
-      await printReceiptDouble(order);
+      // Print receipt only - no database save
+      await printReceiptDouble(tempOrder as any);
       
-      // Remove from hold after successful print and mark as complete
+      // Remove from hold after successful print
       removeHoldOrder(holdOrder.id);
       
       toast.success("Receipt printed! Order completed and table freed.");
@@ -221,7 +224,7 @@ export default function POSPage() {
     } finally {
       setPrintingHoldReceipt(null);
     }
-  }, [profile, printingHoldReceipt, removeHoldOrder]);
+  }, [printingHoldReceipt, removeHoldOrder]);
 
   // Send held order to kitchen (print receipt only - KOT already printed)
   const sendHoldOrderToKitchen = useCallback(async (holdOrder: HoldOrder) => {
@@ -544,11 +547,14 @@ export default function POSPage() {
     // ── DINE-IN: Print KOT and add to hold (NO kitchen display) ──
     if (orderType === "dine_in") {
       try {
+        // Get next daily order number for KOT
+        const dailyNum = bumpLocalDailyNumber();
+        
         // Create temporary order object just for KOT printing (not saved to database)
         const tempOrder = {
           id: `temp-dine-${Date.now()}`,
-          orderNumber: Date.now(),
-          dailyOrderNumber: Date.now(),
+          orderNumber: String(dailyNum),
+          dailyOrderNumber: dailyNum,
           customerName: nameToUse,
           customerPhone: phoneToUse,
           type: orderType as OrderType,
