@@ -84,6 +84,8 @@ export default function POSPage() {
   const [cartStep, setCartStep] = useState<"cart" | "details">("cart");
   const [activeView, setActiveView] = useState<"menu" | "hold">("menu");
   const [editingHoldOrderId, setEditingHoldOrderId] = useState<string | null>(null);
+  const [printingHoldReceipt, setPrintingHoldReceipt] = useState<string | null>(null);
+  const [sendingHoldOrder, setSendingHoldOrder] = useState<string | null>(null);
 
   // Delivery state — delivery is always Lahore (LHR)
   const [street, setStreet] = useState("");
@@ -169,6 +171,9 @@ export default function POSPage() {
 
   // Print receipt for held order (without sending to kitchen)
   const printHoldReceipt = useCallback(async (holdOrder: HoldOrder) => {
+    if (printingHoldReceipt === holdOrder.id) return; // Prevent double click
+    setPrintingHoldReceipt(holdOrder.id);
+
     const orderItems: OrderItem[] = holdOrder.items.map((line, i) => ({
       id: `hold-${i}`,
       menuItemId: line.menuItem.id,
@@ -205,11 +210,16 @@ export default function POSPage() {
       toast.success("Receipt printed successfully!");
     } catch (err: any) {
       toast.error(err?.message || "Failed to print receipt");
+    } finally {
+      setPrintingHoldReceipt(null);
     }
-  }, [profile]);
+  }, [profile, printingHoldReceipt]);
 
   // Send held order to kitchen (print receipt only - KOT already printed)
   const sendHoldOrderToKitchen = useCallback(async (holdOrder: HoldOrder) => {
+    if (sendingHoldOrder === holdOrder.id) return; // Prevent double click
+    setSendingHoldOrder(holdOrder.id);
+
     const orderItems: OrderItem[] = holdOrder.items.map((line, i) => ({
       id: `hold-${i}`,
       menuItemId: line.menuItem.id,
@@ -254,8 +264,10 @@ export default function POSPage() {
       });
     } catch (err: any) {
       toast.error(err?.message || "Failed to print receipt");
+    } finally {
+      setSendingHoldOrder(null);
     }
-  }, [profile, removeHoldOrder]);
+  }, [profile, removeHoldOrder, sendingHoldOrder]);
 
   // ── Load cache immediately on mount (before any Firebase calls) ──
   useLayoutEffect(() => {
@@ -521,32 +533,36 @@ export default function POSPage() {
 
     setPaying(true);
 
-    // ── DINE-IN: Print KOT first, then hold the order ──
+    // ── DINE-IN: Print KOT and add to hold (NO kitchen display) ──
     if (orderType === "dine_in") {
-      const inputData: CreateOrderInput = {
-        customerName: nameToUse,
-        customerPhone: phoneToUse,
-        type: orderType,
-        items: orderItems,
-        subtotal: originalSubtotal,
-        tax: 0,
-        deliveryCharge: 0,
-        discount,
-        total: finalTotal,
-        source: "pos",
-        paymentMethod: "cash",
-        status: "received",
-        kitchenStatus: "new",
-        createdBy: profile?.id,
-        tableNumber,
-        ...(orderNotes.trim() ? { deliveryNotes: orderNotes.trim() } : {}),
-      };
-
       try {
-        const { order } = buildInstantPosOrder(inputData);
+        // Create temporary order object just for KOT printing (not saved to database)
+        const tempOrder = {
+          id: `temp-dine-${Date.now()}`,
+          orderNumber: Date.now(),
+          dailyOrderNumber: Date.now(),
+          customerName: nameToUse,
+          customerPhone: phoneToUse,
+          type: orderType as OrderType,
+          items: orderItems,
+          subtotal: originalSubtotal,
+          tax: 0,
+          deliveryCharge: 0,
+          discount,
+          total: finalTotal,
+          source: "pos" as const,
+          paymentMethod: "cash" as const,
+          status: "received" as const,
+          kitchenStatus: "new" as const,
+          paymentStatus: "pending" as const,
+          tableNumber,
+          deliveryNotes: orderNotes.trim() || undefined,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
         
-        // Print KOT for kitchen
-        await printKOT(order);
+        // Print KOT for kitchen (but don't save order to database)
+        await printKOT(tempOrder as any);
         
         // Add to hold (for later receipt printing)
         addHoldOrder({
@@ -569,8 +585,8 @@ export default function POSPage() {
         setOrderNotes("");
         setPaying(false);
         setCartStep("cart");
-        toast.success(`Dine-in order for Table #${tableNumber} sent to kitchen!`, {
-          description: "KOT printed. Order is on hold for billing.",
+        toast.success(`Dine-in order for Table #${tableNumber} on hold!`, {
+          description: "KOT printed for kitchen. Order is on hold for billing.",
         });
         
         // Refresh stock limits
@@ -1031,9 +1047,10 @@ export default function POSPage() {
                           variant="outline"
                           size="sm"
                           className="text-xs font-bold"
+                          disabled={printingHoldReceipt === holdOrder.id}
                           onClick={() => printHoldReceipt(holdOrder)}
                         >
-                          Print Receipt
+                          {printingHoldReceipt === holdOrder.id ? "Printing..." : "Print Receipt"}
                         </Button>
                       </div>
                       
@@ -1041,9 +1058,10 @@ export default function POSPage() {
                         <Button
                           size="sm"
                           className="w-full font-bold bg-amber-500 hover:bg-amber-600"
+                          disabled={sendingHoldOrder === holdOrder.id}
                           onClick={() => sendHoldOrderToKitchen(holdOrder)}
                         >
-                          Print Receipt & Complete Order
+                          {sendingHoldOrder === holdOrder.id ? "Printing..." : "Print Receipt & Complete Order"}
                         </Button>
                       </div>
                     </div>

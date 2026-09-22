@@ -67,6 +67,7 @@ export default function KitchenPage() {
   const [isSavingEdited, setIsSavingEdited] = useState(false);
   const [isSettlingPayment, setIsSettlingPayment] = useState(false);
   const [isConfirmingPaid, setIsConfirmingPaid] = useState(false);
+  const [isDeletingOrder, setIsDeletingOrder] = useState<string | null>(null);
 
   useEffect(() => {
     let remote: Order[] = [];
@@ -291,6 +292,47 @@ export default function KitchenPage() {
       void printReceipt({ ...order, billPrinted: true });
     } catch (err) {
       toast.error("Failed to print bill");
+    }
+  }
+
+  // Delete/Cancel Order
+  async function handleDeleteOrder(order: Order) {
+    if (isDeletingOrder === order.id) return; // Prevent double click
+    
+    const num = order.dailyOrderNumber ?? order.orderNumber;
+    const confirmed = window.confirm(
+      `Cancel Order #${num}?\n\nThis will mark the order as cancelled and remove it from the kitchen display.`
+    );
+    
+    if (!confirmed) return;
+    
+    setIsDeletingOrder(order.id);
+    try {
+      const now = new Date().toISOString();
+      const updatedFields = {
+        status: "cancelled" as const,
+        kitchenStatus: "cancelled" as const,
+        updatedAt: now,
+      };
+
+      if (order.id.startsWith("local-")) {
+        const m = await import("@/lib/pos-instant");
+        m.updatePendingOrderStatus(order.id, "cancelled", "cancelled");
+        
+        try {
+          await updateDoc(doc(getFirestoreDb(), "orders", order.id), updatedFields);
+        } catch {
+          // Order not yet synced, local storage update is enough
+        }
+      } else {
+        await updateDoc(doc(getFirestoreDb(), "orders", order.id), updatedFields);
+      }
+
+      toast.success(`Order #${num} has been cancelled`);
+    } catch (err) {
+      toast.error("Failed to cancel order");
+    } finally {
+      setIsDeletingOrder(null);
     }
   }
 
@@ -804,14 +846,25 @@ export default function KitchenPage() {
                     {/* Footer Actions */}
                     <div className="p-3 border-t border-slate-100 bg-slate-50 flex gap-2">
                       {!order.billPrinted && (
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(order)}
-                          className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition active:scale-95 flex items-center justify-center shrink-0"
-                          title="Edit Items"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(order)}
+                            className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition active:scale-95 flex items-center justify-center shrink-0"
+                            title="Edit Items"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteOrder(order)}
+                            disabled={isDeletingOrder === order.id}
+                            className="p-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition active:scale-95 flex items-center justify-center shrink-0 disabled:opacity-50"
+                            title="Cancel Order"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                       {activeTab === "cooking" ? (
                         <button
