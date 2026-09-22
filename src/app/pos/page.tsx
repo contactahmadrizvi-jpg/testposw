@@ -197,8 +197,9 @@ export default function POSPage() {
       total: holdOrder.total,
       source: "pos",
       paymentMethod: "cash",
-      status: "received",
-      kitchenStatus: "new",
+      paymentStatus: "paid", // Mark as paid when printing receipt
+      status: "served", // Mark as served to complete the order
+      kitchenStatus: "served", // Kitchen status also served
       createdBy: profile?.id,
       tableNumber: holdOrder.tableNumber,
       ...(holdOrder.orderNotes ? { deliveryNotes: holdOrder.orderNotes } : {}),
@@ -207,13 +208,17 @@ export default function POSPage() {
     try {
       const { order } = buildInstantPosOrder(inputData);
       await printReceiptDouble(order);
-      toast.success("Receipt printed successfully!");
+      
+      // Remove from hold after successful print and mark as complete
+      removeHoldOrder(holdOrder.id);
+      
+      toast.success("Receipt printed! Order completed and table freed.");
     } catch (err: any) {
       toast.error(err?.message || "Failed to print receipt");
     } finally {
       setPrintingHoldReceipt(null);
     }
-  }, [profile, printingHoldReceipt]);
+  }, [profile, printingHoldReceipt, removeHoldOrder]);
 
   // Send held order to kitchen (print receipt only - KOT already printed)
   const sendHoldOrderToKitchen = useCallback(async (holdOrder: HoldOrder) => {
