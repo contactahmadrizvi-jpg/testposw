@@ -7,7 +7,7 @@ import { cn, parseDate, formatCurrency } from "@/lib/utils";
 import { subscribeKitchenOrders } from "@/services/orders.service";
 import { subscribeMenuItems, getActiveDeals } from "@/services/menu.service";
 import { getPendingKitchenOrders } from "@/lib/pos-instant";
-import { playOrderSound, printReceipt, printKOT } from "@/lib/print";
+import { playOrderSound, printReceipt, printKOT, warmPrintCache } from "@/lib/print";
 import type { Order, KitchenStatus, MenuItem, Deal, MenuVariant } from "@/types";
 import { RESTAURANT } from "@/constants";
 import { KitchenColumnsSkeleton } from "@/components/ui/loading-skeletons";
@@ -68,8 +68,10 @@ export default function KitchenPage() {
   const [isSettlingPayment, setIsSettlingPayment] = useState(false);
   const [isConfirmingPaid, setIsConfirmingPaid] = useState(false);
   const [isDeletingOrder, setIsDeletingOrder] = useState<string | null>(null);
+  const [isPrintingBill, setIsPrintingBill] = useState<string | null>(null);
 
   useEffect(() => {
+    warmPrintCache(); // Pre-fetch logo + header so first print is instant
     let remote: Order[] = [];
 
     // ── Show local pending orders immediately so kitchen works offline ──
@@ -271,13 +273,10 @@ export default function KitchenPage() {
 
   // Print Bill / Re-Print — always prints directly, never asks for payment method
   async function handlePrintBill(order: Order) {
+    if (isPrintingBill === order.id) return; // Prevent double-click
+    setIsPrintingBill(order.id);
     try {
       const num = order.dailyOrderNumber ?? order.orderNumber;
-      const confirmed = window.confirm(`Print Receipt/Bill for Order #${num}?`);
-      if (!confirmed) {
-        toast.error("Print cancelled.");
-        return;
-      }
 
       if (order.id.startsWith("local-")) {
         const m = await import("@/lib/pos-instant");
@@ -288,10 +287,12 @@ export default function KitchenPage() {
           updatedAt: new Date().toISOString(),
         });
       }
-      toast.success("Printing bill...");
-      void printReceipt({ ...order, billPrinted: true });
+      toast.success(`Printing bill for Order #${num}...`);
+      await printReceipt({ ...order, billPrinted: true });
     } catch (err) {
       toast.error("Failed to print bill");
+    } finally {
+      setIsPrintingBill(null);
     }
   }
 
@@ -879,10 +880,11 @@ export default function KitchenPage() {
                         <div className="flex flex-1 gap-2">
                           <button
                             type="button"
-                            className="flex-1 rounded-xl py-2.5 text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-95"
+                            disabled={isPrintingBill === order.id}
+                            className="flex-1 rounded-xl py-2.5 text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={() => handlePrintBill(order)}
                           >
-                            🖨️ {order.billPrinted ? "Re-Print Bill" : "Print Bill"}
+                            {isPrintingBill === order.id ? "⏳ Printing..." : `🖨️ ${order.billPrinted ? "Re-Print Bill" : "Print Bill"}`}
                           </button>
                           <button
                             type="button"

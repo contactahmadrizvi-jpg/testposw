@@ -15,50 +15,36 @@ export type PrintHeader = {
 let cachedHeader: PrintHeader | null = null;
 let printChain: Promise<void> = Promise.resolve();
 let isPrinting = false;
-let printTimeout: NodeJS.Timeout | null = null;
-let lastPrinterCheck = 0;
-let printerAvailable = true;
+let printSafetyTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Safety: Reset isPrinting flag after 30 seconds if stuck
+// Safety: Reset isPrinting flag after 15 seconds if stuck
 function safetyResetPrintFlag() {
-  if (printTimeout) clearTimeout(printTimeout);
-  printTimeout = setTimeout(() => {
+  if (printSafetyTimer) clearTimeout(printSafetyTimer);
+  printSafetyTimer = setTimeout(() => {
     if (isPrinting) {
-      console.warn('[Print] Safety reset: isPrinting flag was stuck, resetting...');
+      console.warn('[Print] Safety reset: isPrinting flag stuck for 15s, resetting...');
       isPrinting = false;
     }
-  }, 30000); // 30 seconds timeout
+  }, 15000);
 }
 
-// Check if printer is available (every 5 minutes)
-async function checkPrinterAvailability(): Promise<boolean> {
-  const now = Date.now();
-  if (now - lastPrinterCheck < 300000) { // 5 minutes
-    return printerAvailable;
+function clearSafetyTimer() {
+  if (printSafetyTimer) {
+    clearTimeout(printSafetyTimer);
+    printSafetyTimer = null;
   }
-  
-  lastPrinterCheck = now;
-  
+}
+
+/** Warm up the print cache (logo + header) in the background so first print is instant. */
+export async function warmPrintCache(): Promise<void> {
   try {
-    // Try to detect if browser supports printing
-    if (!window.print) {
-      console.error('[Print] Browser does not support printing');
-      printerAvailable = false;
-      return false;
-    }
-    
-    // Check if we're in a print-friendly environment
-    if (typeof document === 'undefined') {
-      printerAvailable = false;
-      return false;
-    }
-    
-    printerAvailable = true;
-    return true;
+    await Promise.all([
+      preloadPrintHeader(),
+      getCachedLogoBase64(),
+    ]);
+    console.log('[Print] Cache warmed up successfully');
   } catch (err) {
-    console.error('[Print] Printer check failed:', err);
-    printerAvailable = false;
-    return false;
+    console.warn('[Print] Cache warm-up failed (non-fatal):', err);
   }
 }
 
@@ -147,72 +133,66 @@ export async function printKOT(order: Order): Promise<void> {
 }
 
 function enqueuePrint(html: string): Promise<void> {
-  // If stuck for too long, force reset
   if (isPrinting) {
-    console.warn('[Print] Already printing, queuing...');
+    console.warn('[Print] Already printing, queuing next job...');
   }
-  
   const job = printChain.then(() => printHtmlOnce(html));
   printChain = job.catch((err) => {
     console.error('[Print] Print job failed:', err);
-    // Ensure flag is reset on error
     isPrinting = false;
-    if (printTimeout) clearTimeout(printTimeout);
+    clearSafetyTimer();
   });
   return job;
 }
 
 function printHtmlOnce(html: string): Promise<void> {
+  // If a previous job is somehow still locked, wait up to 8s then force-reset
   if (isPrinting) {
-    console.log('[Print] Waiting for current print to finish...');
+    console.warn('[Print] isPrinting=true, waiting up to 8s for it to clear...');
     return new Promise((resolve) => {
-      const checkInterval = setInterval(() => {
+      const deadline = Date.now() + 8000;
+      const check = () => {
         if (!isPrinting) {
-          clearInterval(checkInterval);
           resolve(printHtmlOnce(html));
+        } else if (Date.now() >= deadline) {
+          console.warn('[Print] Force-clearing stuck isPrinting flag');
+          isPrinting = false;
+          resolve(printHtmlOnce(html));
+        } else {
+          setTimeout(check, 300);
         }
-      }, 500);
-      // Safety: Don't wait forever
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        console.warn('[Print] Timeout waiting for print, forcing...');
-        isPrinting = false;
-        resolve(printHtmlOnce(html));
-      }, 10000);
+      };
+      setTimeout(check, 300);
     });
   }
-  
+
   console.log('[Print] Starting new print job...');
   isPrinting = true;
-  safetyResetPrintFlag(); // Start safety timer
+  safetyResetPrintFlag();
 
-  return new Promise(async (resolve) => {
-    // Check printer availability
-    const available = await checkPrinterAvailability();
-    if (!available) {
-      console.error('[Print] Printer not available, please check browser settings');
-      alert('⚠️ Printer not available!\n\nPlease check:\n1. Browser has permission to print\n2. Default printer is set\n3. Printer is connected\n\nThen refresh the page and try again.');
+  return new Promise((resolve) => {
+    // Basic sanity check
+    if (typeof window === 'undefined' || !window.print) {
+      console.error('[Print] window.print not available');
+      alert('⚠️ Printing is not supported in this browser.\nPlease use Chrome or Edge.');
       isPrinting = false;
-      if (printTimeout) clearTimeout(printTimeout);
+      clearSafetyTimer();
       resolve();
       return;
     }
 
     console.log('[Print] Creating print iframe...');
-    const iframe = document.createElement("iframe");
-    // Give iframe a real 58mm width (≈220px at 96dpi) so the browser renders
-    // at the correct thermal-paper width. Zero width causes the browser to
-    // fall back to screen width then print a huge blank A4-height page.
-    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:58mm;height:1px;border:0;opacity:0;pointer-events:none;";
-    
+    const iframe = document.createElement('iframe');
+    // 58mm thermal-paper width so browser renders at correct width
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:58mm;height:1px;border:0;opacity:0;pointer-events:none;';
+
     try {
       document.body.appendChild(iframe);
-      console.log('[Print] Iframe added to document');
     } catch (err) {
-      console.error('[Print] Failed to create print iframe:', err);
+      console.error('[Print] Failed to append iframe:', err);
+      alert('⚠️ Failed to create print frame!\n\nError: ' + (err as Error).message);
       isPrinting = false;
-      if (printTimeout) clearTimeout(printTimeout);
-      alert('⚠️ Failed to create print iframe!\n\nError: ' + (err as Error).message);
+      clearSafetyTimer();
       resolve();
       return;
     }
@@ -220,79 +200,64 @@ function printHtmlOnce(html: string): Promise<void> {
     const win = iframe.contentWindow;
     const doc = win?.document;
     if (!doc || !win) {
-      console.error('[Print] Failed to access iframe window/document');
-      isPrinting = false;
-      if (printTimeout) clearTimeout(printTimeout);
-      iframe.remove();
+      console.error('[Print] Cannot access iframe document');
       alert('⚠️ Failed to access print window!');
+      iframe.remove();
+      isPrinting = false;
+      clearSafetyTimer();
       resolve();
       return;
     }
 
-    console.log('[Print] Writing content to iframe...');
     doc.open();
     doc.write(html);
     doc.close();
-    console.log('[Print] Content written successfully');
 
-    // Guard: runPrint must only execute once even if both the
-    // readyState===complete branch AND iframe.onload fire.
     let hasPrinted = false;
+
     const done = () => {
-      console.log('[Print] Cleanup started');
       isPrinting = false;
-      if (printTimeout) clearTimeout(printTimeout);
+      clearSafetyTimer();
+      // Small delay before removing iframe so browser finishes spooling
       setTimeout(() => {
-        try {
-          iframe.remove();
-          console.log('[Print] Iframe removed');
-        } catch (err) {
-          console.warn('[Print] Failed to remove iframe:', err);
-        }
+        try { iframe.remove(); } catch { /* ignore */ }
       }, 500);
       resolve();
     };
 
     const runPrint = () => {
-      if (hasPrinted) {
-        console.log('[Print] Already printed, skipping');
-        return;
-      }
+      if (hasPrinted) return;
       hasPrinted = true;
-      // Remove onload handler to prevent any late fires
       iframe.onload = null;
-      
       try {
-        console.log('[Print] Focusing iframe window...');
         win.focus();
-        console.log('[Print] Calling window.print()...');
         win.print();
-        console.log('[Print] ✅ Print dialog opened successfully!');
+        console.log('[Print] ✅ Print dialog opened');
       } catch (err) {
-        console.error('[Print] ❌ Print failed:', err);
-        alert('⚠️ Print Failed!\n\nError: ' + (err as Error).message + '\n\nPlease check:\n1. Printer is connected and turned on\n2. Printer drivers are installed\n3. Browser has print permissions\n4. Try using Chrome or Edge browser');
+        console.error('[Print] ❌ window.print() threw:', err);
+        alert(
+          '⚠️ Print Failed!\n\nError: ' + (err as Error).message +
+          '\n\nPlease check:\n1. Printer is connected and on\n2. Drivers are installed\n3. Try Chrome or Edge'
+        );
       } finally {
         done();
       }
     };
 
-    // Safety: If print doesn't happen within 5 seconds, force cleanup
-    const printSafetyTimeout = setTimeout(() => {
+    // Fallback: if iframe onload never fires within 3s, print anyway
+    const fallback = setTimeout(() => {
       if (!hasPrinted) {
-        console.warn('[Print] Print dialog timeout (5s), forcing cleanup...');
+        console.warn('[Print] iframe onload timeout (3s), printing anyway...');
         runPrint();
       }
-    }, 5000);
+    }, 3000);
 
-    if (doc.readyState === "complete") {
-      console.log('[Print] Document ready, printing immediately');
-      clearTimeout(printSafetyTimeout);
+    if (doc.readyState === 'complete') {
+      clearTimeout(fallback);
       runPrint();
     } else {
-      console.log('[Print] Waiting for document load...');
       iframe.onload = () => {
-        console.log('[Print] Document loaded, printing now');
-        clearTimeout(printSafetyTimeout);
+        clearTimeout(fallback);
         runPrint();
       };
     }

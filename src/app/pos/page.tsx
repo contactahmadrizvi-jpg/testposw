@@ -28,7 +28,7 @@ import { subscribeMenuItems, getActiveCategories, getActiveDeals } from "@/servi
 import { checkStockForOrderItems, getRecipeAvailabilityMap, getMaxOrderable } from "@/services/inventory.service";
 import type { CreateOrderInput } from "@/services/orders.service";
 import { subscribeKitchenOrders } from "@/services/orders.service";
-import { preloadPrintHeader, printReceiptDouble, printKOT } from "@/lib/print";
+import { warmPrintCache, printReceiptDouble, printKOT } from "@/lib/print";
 import { buildInstantPosOrder, bumpLocalDailyNumber } from "@/lib/pos-instant";
 import { startPosSyncWorker } from "@/services/pos-sync.service";
 import { formatCurrency, cn, normalizePhone, isValidPhone } from "@/lib/utils";
@@ -315,7 +315,7 @@ export default function POSPage() {
   }, [authLoading, profile, router]);
 
   useEffect(() => {
-    preloadPrintHeader();
+    warmPrintCache(); // Pre-fetch logo + header so first print is instant
     const stopSync = startPosSyncWorker();
     const offlineTimer = setTimeout(() => setMenuLoading(false), 3000); // Reduced from 6s to 3s
 
