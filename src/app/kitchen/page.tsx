@@ -13,7 +13,7 @@ import { RESTAURANT } from "@/constants";
 import { KitchenColumnsSkeleton } from "@/components/ui/loading-skeletons";
 import { doc, updateDoc } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/config";
-import { Minus, Plus, Edit, CheckCircle } from "lucide-react";
+import { Minus, Plus, Edit, CheckCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OfflineIndicator } from "@/components/offline-indicator";
