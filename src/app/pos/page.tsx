@@ -197,7 +197,6 @@ export default function POSPage() {
       total: holdOrder.total,
       source: "pos",
       paymentMethod: "cash",
-      paymentStatus: "paid", // Mark as paid when printing receipt
       status: "served", // Mark as served to complete the order
       kitchenStatus: "served", // Kitchen status also served
       createdBy: profile?.id,
@@ -207,6 +206,10 @@ export default function POSPage() {
 
     try {
       const { order } = buildInstantPosOrder(inputData);
+      
+      // Override payment status to mark as paid (buildInstantPosOrder always sets it to "pending")
+      order.paymentStatus = "paid";
+      
       await printReceiptDouble(order);
       
       // Remove from hold after successful print and mark as complete
